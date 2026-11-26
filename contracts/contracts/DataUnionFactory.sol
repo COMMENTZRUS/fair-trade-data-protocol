@@ -98,51 +98,68 @@ contract DataUnionFactory is Ownable {
 
     /// @notice Deploy a tokenized ERC-20 Data Union (`ERC20SharesSplitter` + `DynamicSplitterShare`).
     function createERC20DataUnion(
-        string calldata salt,
-        string calldata tokenName,
-        string calldata tokenSymbol,
+        string memory salt,
+        string memory tokenName,
+        string memory tokenSymbol,
         uint256 initialSupply,
         address recipient,
         address minter,
-        address[] calldata tokens,
+        address[] memory tokens,
         address upstreamSplitter,
         uint256 configOptions
     ) external returns (address splitter, address sharesToken) {
-        address[] memory splitTokens = _resolveTokens(tokens);
-        bytes32 derivedSalt = keccak256(abi.encodePacked(msg.sender, salt));
-        splitter = Clones.cloneDeterministic(erc20SplitterImpl, derivedSalt);
-        sharesToken = Clones.cloneDeterministic(dynamicShareImpl, derivedSalt);
-
-        InitializableSplitter(splitter).init(sharesToken, splitTokens, upstreamSplitter, configOptions);
+        (splitter, sharesToken) = _cloneAndInitSplitter(
+            salt,
+            erc20SplitterImpl,
+            dynamicShareImpl,
+            tokens,
+            upstreamSplitter,
+            configOptions
+        );
         InitializableShare(sharesToken).init(splitter, tokenName, tokenSymbol, initialSupply, recipient, minter);
-
         _registerUnion(splitter, sharesToken, upstreamSplitter, UnionKind.ERC20_SHARES, tokenName);
     }
 
     /// @notice Deploy a DAO-governed ERC20Votes Data Union (`ERC20SharesSplitter` + `VotesSplitterShare`).
     function createVotesDataUnion(
-        string calldata salt,
-        string calldata tokenName,
-        string calldata tokenSymbol,
+        string memory salt,
+        string memory tokenName,
+        string memory tokenSymbol,
         uint256 initialSupply,
         address recipient,
         address minter,
-        address[] calldata tokens,
+        address[] memory tokens,
         address upstreamSplitter,
         uint256 configOptions
     ) external returns (address splitter, address sharesToken) {
-        address[] memory splitTokens = _resolveTokens(tokens);
-        bytes32 derivedSalt = keccak256(abi.encodePacked(msg.sender, salt));
-        splitter = Clones.cloneDeterministic(erc20SplitterImpl, derivedSalt);
-        sharesToken = Clones.cloneDeterministic(votesShareImpl, derivedSalt);
-
-        InitializableSplitter(splitter).init(sharesToken, splitTokens, upstreamSplitter, configOptions);
+        (splitter, sharesToken) = _cloneAndInitSplitter(
+            salt,
+            erc20SplitterImpl,
+            votesShareImpl,
+            tokens,
+            upstreamSplitter,
+            configOptions
+        );
         InitializableShare(sharesToken).init(splitter, tokenName, tokenSymbol, initialSupply, recipient, minter);
-
         _registerUnion(splitter, sharesToken, upstreamSplitter, UnionKind.VOTES_GOVERNED, tokenName);
     }
 
-    function _resolveTokens(address[] calldata tokens) internal view returns (address[] memory) {
+    function _cloneAndInitSplitter(
+        string memory salt,
+        address splitterImpl,
+        address shareImpl,
+        address[] memory tokens,
+        address upstreamSplitter,
+        uint256 configOptions
+    ) internal returns (address splitter, address sharesToken) {
+        address[] memory splitTokens = _resolveTokens(tokens);
+        bytes32 derivedSalt = keccak256(abi.encodePacked(msg.sender, salt));
+        splitter = Clones.cloneDeterministic(splitterImpl, derivedSalt);
+        sharesToken = Clones.cloneDeterministic(shareImpl, derivedSalt);
+        InitializableSplitter(splitter).init(sharesToken, splitTokens, upstreamSplitter, configOptions);
+    }
+
+    function _resolveTokens(address[] memory tokens) internal view returns (address[] memory) {
         if (tokens.length > 0) {
             return tokens;
         }
@@ -155,7 +172,7 @@ contract DataUnionFactory is Ownable {
         address sharesToken,
         address upstreamSplitter,
         UnionKind kind,
-        string calldata name
+        string memory name
     ) internal {
         isDataUnion[splitter] = true;
         unionInfo[splitter] = DataUnionInfo({

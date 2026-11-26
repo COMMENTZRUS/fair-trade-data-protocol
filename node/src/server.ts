@@ -909,6 +909,89 @@ export function createFtdpServer(options: FtdpServerOptions) {
         });
       }
 
+      // =========================================================================
+      // Modular v2 Compute-to-Data Worker Endpoint (Returns Aggregates Only — Zero Raw Records / Zero PII)
+      // =========================================================================
+      if (method === "POST" && pathname === "/v1/compute/jobs") {
+        const body = parseBody() as {
+          deploymentId?: string;
+          dataId?: string;
+          granteeAddress?: string;
+          requiredFlags?: string;
+          algorithm?: "topic_counts" | "avg_rating" | "engagement_summary";
+        };
+        if (!body.deploymentId || !body.granteeAddress || !ethers.isAddress(body.granteeAddress)) {
+          return reply(400, { error: "deploymentId and valid granteeAddress are required" });
+        }
+        const algorithm = body.algorithm || "engagement_summary";
+        const requiredFlags = BigInt(body.requiredFlags || "0");
+        const dataId = body.dataId || ethers.ZeroHash;
+        const tree = buildDeploymentTree(body.deploymentId);
+        const allAnon = store.state.anonRecords[body.deploymentId] || [];
+
+        const topicCounts: Record<string, number> = {};
+        let eligibleCount = 0;
+        let ratingSum = 0;
+        let ratingCount = 0;
+
+        for (const rec of allAnon) {
+          if (body.dataId && rec.meta.dataId && rec.meta.dataId.toLowerCase() !== body.dataId.toLowerCase()) {
+            continue;
+          }
+          const proofObj = tree.getProof(rec.meta.uidHash);
+          if (!proofObj || (proofObj.flags & requiredFlags) !== requiredFlags) continue;
+          const allowed = await verifyCanRead({
+            grantee: body.granteeAddress,
+            grantorDeploymentId: body.deploymentId,
+            uidHash: rec.meta.uidHash,
+            dataId,
+            merkleFlags: proofObj.flags,
+            merkleProof: proofObj.proof,
+          });
+          if (!allowed) continue;
+
+          eligibleCount += 1;
+          const topic = typeof rec.anon.topic === "string" ? rec.anon.topic : "unclassified";
+          topicCounts[topic] = (topicCounts[topic] || 0) + 1;
+          if (typeof rec.anon.score === "number") {
+            ratingSum += rec.anon.score;
+            ratingCount += 1;
+          }
+        }
+
+        const aggregateResult =
+          algorithm === "topic_counts"
+            ? { algorithm, eligibleRecords: eligibleCount, topicCounts }
+            : algorithm === "avg_rating"
+            ? {
+                algorithm,
+                eligibleRecords: eligibleCount,
+                ratingCount,
+                averageRating: ratingCount > 0 ? Number((ratingSum / ratingCount).toFixed(3)) : null,
+              }
+            : {
+                algorithm,
+                eligibleRecords: eligibleCount,
+                distinctTopics: Object.keys(topicCounts).length,
+                topicCounts,
+              };
+
+        const canonicalResult = JSON.stringify(aggregateResult);
+        const resultCidHash = ethers.keccak256(ethers.toUtf8Bytes(canonicalResult));
+        const attestationHash = ethers.solidityPackedKeccak256(
+          ["bytes32", "bytes32", "bytes32"],
+          [body.deploymentId, tree.root, resultCidHash]
+        );
+
+        return reply(200, {
+          deploymentId: body.deploymentId,
+          merkleRoot: tree.root,
+          result: aggregateResult,
+          resultCidHash,
+          attestationHash,
+        });
+      }
+
       return reply(404, { error: `Route not found: ${method} ${pathname}` });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Internal server error";

@@ -14,8 +14,13 @@ import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 
-const HOOK_PROGRAM_ID = new PublicKey("EpzDyxiALMpGSBzD32HKmuA7w4cbHq1PeaV7XsZiWPKK");
-const SPLITTER_PROGRAM_ID = new PublicKey("5L2JmoDTzvb16VfBeNozP8jZBUjQUaA4JB4FzrmqTpLy");
+if (!process.env.FTDP_SPLITTER_PROGRAM_ID) {
+  throw new Error("Set FTDP_SPLITTER_PROGRAM_ID env var to your deployed spl-union program ID");
+}
+const SPLITTER_PROGRAM_ID = new PublicKey(process.env.FTDP_SPLITTER_PROGRAM_ID);
+const HOOK_PROGRAM_ID = new PublicKey(
+  process.env.FTDP_HOOK_PROGRAM_ID || process.env.FTDP_SPLITTER_PROGRAM_ID
+);
 
 function resolveHookAccounts(mint: PublicKey, sourceAta: PublicKey, destAta: PublicKey) {
   const [splitterInfo] = PublicKey.findProgramAddressSync(

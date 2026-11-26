@@ -29,6 +29,11 @@ pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
 
     let from_pubkey = ctx.accounts.splitter_info.to_account_info();
     let to_pubkey = ctx.accounts.user.to_account_info();
+    // Preserve rent-exempt reserve (`initial_lamports`) on splitter PDA
+    require!(
+        from_pubkey.lamports().saturating_sub(to_withdraw) >= ctx.accounts.splitter_info.initial_lamports,
+        MultiSplitterErrors::InsufficientBalance
+    );
     **from_pubkey.try_borrow_mut_lamports()? -= to_withdraw;
     **to_pubkey.try_borrow_mut_lamports()? += to_withdraw;
     ctx.accounts.sol_balance_info.withdrawn += to_withdraw;

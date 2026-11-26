@@ -987,6 +987,7 @@ docker compose up -d
                 <div>• splitter/VotesSplitterShare.sol — ERC20Votes dividend shares</div>
                 <div>• v2/FtdToken.sol &amp; FtdAccessStaking.sol — FTD token &amp; Mobile Nodes</div>
                 <div>• v2/DataUnionGovernor.sol — OpenZeppelin v5 DAO governance</div>
+                <div>• v2/ComputeToDataEscrow.sol — Privacy-preserving AI compute escrow → Union payouts</div>
               </div>
             </div>
           </div>

@@ -29,10 +29,19 @@ fn check_token_account_is_transferring(account_data: &[u8]) -> Result<()> {
     }
 }
 
-/// Read the token amount from raw account data at offset 64 (works for both SPL Token and Token-2022).
-fn read_token_balance(account_info: &AccountInfo) -> Result<u64> {
+/// Read & verify SPL token account balance (checks mint & owner match splitter PDA before trusting balance).
+fn read_verified_token_balance(
+    account_info: &AccountInfo,
+    expected_mint: &Pubkey,
+    expected_owner: &Pubkey,
+) -> Result<u64> {
     let data = account_info.try_borrow_data()?;
     if data.len() < 72 {
+        return Err(ProgramError::InvalidAccountData.into());
+    }
+    let mint = Pubkey::try_from(&data[0..32]).unwrap();
+    let owner = Pubkey::try_from(&data[32..64]).unwrap();
+    if &mint != expected_mint || &owner != expected_owner {
         return Err(ProgramError::InvalidAccountData.into());
     }
     Ok(u64::from_le_bytes(data[64..72].try_into().unwrap()))
@@ -189,8 +198,15 @@ pub fn transfer_hook<'info>(ctx: Context<'_, '_, 'info, 'info, TransferHookCtx<'
             // SOL: balance from splitter_info lamports
             (splitter_info.get_lamports(), splitter_info.initial_lamports)
         } else {
-            // SPL: balance from splitter ATA at remaining_accounts[spl_ata_offset]
-            let bal = read_token_balance(&ctx.remaining_accounts[spl_ata_offset])?;
+            // SPL: bounds-checked & mint/owner verified splitter ATA at remaining_accounts[spl_ata_offset]
+            if spl_ata_offset >= ctx.remaining_accounts.len() {
+                return Err(ProgramError::NotEnoughAccountKeys.into());
+            }
+            let bal = read_verified_token_balance(
+                &ctx.remaining_accounts[spl_ata_offset],
+                &splitter_info.split_mints[i],
+                &splitter_key,
+            )?;
             spl_ata_offset += 1;
             (bal, 0u64)
         };

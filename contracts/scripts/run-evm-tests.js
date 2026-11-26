@@ -755,6 +755,70 @@ test("3-Tier Recursive AutoPull: Root Union -> Comment Protocol -> Top News & Ra
   assert.strictEqual(await usdc.call("balanceOf", rateMyVideoOp.address), ethers.parseUnits("450", 6));
 });
 
+test("Phase 4 v2: ComputeToDataEscrow enforces AccessPermissions, pays Data Union on attestation, and refunds expired jobs", async () => {
+  const env = await createTestEnv(10);
+  const [owner, grantorAdmin, worker, buyerAdmin, contributor1, contributor2] = env.wallets;
+
+  const usdc = await env.deploy(owner, "MockERC20", ["USD Coin", "USDC", 6]);
+  await usdc.tx(owner, "mint", [buyerAdmin.address, ethers.parseUnits("10000", 6)]);
+
+  const clientConfig = await env.deploy(owner, "ClientConfigManager", [owner.address]);
+  const accessPermissions = await env.deploy(owner, "AccessPermissions", [clientConfig.address, owner.address]);
+  const escrow = await env.deploy(owner, "ComputeToDataEscrow", [clientConfig.address, accessPermissions.address, owner.address]);
+  await escrow.tx(owner, "setAuthorizedWorker", [worker.address, true]);
+
+  const factory = await env.deploy(owner, "DataUnionFactory", [[ethers.ZeroAddress, usdc.address], owner.address]);
+  await factory.tx(grantorAdmin, "createAdminDataUnion", ["c2d-union", "C2D Union", grantorAdmin.address, [ethers.ZeroAddress, usdc.address], ethers.ZeroAddress, 0n]);
+  const unionAddr = await factory.call("allUnions", 0);
+  const union = env.bind(unionAddr, "AdminControlledSplitter");
+  await union.tx(grantorAdmin, "setSharesMulti", [[
+    { shareholder: contributor1.address, shares: 600n },
+    { shareholder: contributor2.address, shares: 400n },
+  ]]);
+
+  const grantorDepId = ethers.keccak256(ethers.toUtf8Bytes("deployment:c2d-grantor"));
+  const buyerDepId = ethers.keccak256(ethers.toUtf8Bytes("deployment:c2d-buyer"));
+  const dataId = ethers.keccak256(ethers.toUtf8Bytes("dataset:c2d-news"));
+  const algoHash = ethers.keccak256(ethers.toUtf8Bytes("algo:topic-velocity-v1"));
+
+  await clientConfig.tx(grantorAdmin, "registerDeployment", [grantorDepId, grantorAdmin.address, 0n]);
+  await clientConfig.tx(buyerAdmin, "registerDeployment", [buyerDepId, buyerAdmin.address, 0n]);
+
+  const fee = ethers.parseUnits("2000", 6);
+  await usdc.tx(buyerAdmin, "approve", [escrow.address, ethers.parseUnits("5000", 6)]);
+
+  // Without AccessPermissions grant -> submitJob MUST revert with NoActiveAccessGrant
+  await expectRevert(
+    escrow.tx(buyerAdmin, "submitJob", [grantorDepId, dataId, algoHash, usdc.address, fee, unionAddr, env.getTimestamp() + 3600n]),
+    "NoActiveAccessGrant",
+    escrow.iface
+  );
+
+  // Grant active read permission to buyer deployment
+  await accessPermissions.tx(grantorAdmin, "setPermissions", [grantorDepId, buyerDepId, dataId, 2n, 4n, env.getTimestamp() + 7200n]);
+
+  // Job #1: Submit -> Worker completes -> 2,000 USDC streams into Data Union -> contributors claim 1,200 & 800 USDC!
+  await escrow.tx(buyerAdmin, "submitJob", [grantorDepId, dataId, algoHash, usdc.address, fee, unionAddr, env.getTimestamp() + 3600n]);
+  const resultCidHash = ethers.keccak256(ethers.toUtf8Bytes("ipfs://bafyresult1"));
+  const attestationHash = ethers.keccak256(ethers.toUtf8Bytes("tee-quote-1"));
+  await escrow.tx(worker, "completeJob", [1n, resultCidHash, attestationHash]);
+
+  await union.tx(contributor1, "withdrawAll", [contributor1.address, usdc.address]);
+  await union.tx(contributor2, "withdrawAll", [contributor2.address, usdc.address]);
+  assert.strictEqual(await usdc.call("balanceOf", contributor1.address), ethers.parseUnits("1200", 6));
+  assert.strictEqual(await usdc.call("balanceOf", contributor2.address), ethers.parseUnits("800", 6));
+
+  // Job #2: Submit with short deadline (15s) -> advance 2 blocks (+24s) -> refundExpiredJob returns 1,000 USDC to buyer!
+  const refundFee = ethers.parseUnits("1000", 6);
+  const shortDeadline = env.getTimestamp() + 15n;
+  await escrow.tx(buyerAdmin, "submitJob", [grantorDepId, dataId, algoHash, usdc.address, refundFee, unionAddr, shortDeadline]);
+  const balBeforeRefund = await usdc.call("balanceOf", buyerAdmin.address);
+  // 2 blocks pass (12s each) during refund tx; run 1 no-op approve first to ensure block.timestamp >= shortDeadline
+  await usdc.tx(buyerAdmin, "approve", [escrow.address, 0n]);
+  await escrow.tx(buyerAdmin, "refundExpiredJob", [2n]);
+  assert.strictEqual(await usdc.call("balanceOf", buyerAdmin.address), balBeforeRefund + refundFee);
+});
+
 (async () => {
   let passed = 0;
   let failed = 0;

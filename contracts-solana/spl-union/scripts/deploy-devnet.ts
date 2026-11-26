@@ -23,9 +23,13 @@ import {
 import { MultiSplitterSolana } from "../target/types/multi_splitter_solana";
 import MultiSplitterClient from "../app/client";
 
-const RECIPIENT = new PublicKey("REPLACE_WITH_RECIPIENT_PUBKEY"); // TODO: set to the recipient wallet public key
-const MINT_AMOUNT = 1_000_000;
-const DECIMALS = 0;
+if (!process.env.FTDP_SOLANA_RECIPIENT) {
+  throw new Error("Set FTDP_SOLANA_RECIPIENT env var to the initial share recipient wallet pubkey");
+}
+const RECIPIENT = new PublicKey(process.env.FTDP_SOLANA_RECIPIENT);
+const MINT_AMOUNT = Number(process.env.FTDP_SPL_SUPPLY || 1_000_000);
+const DECIMALS = Number(process.env.FTDP_SPL_DECIMALS || 0);
+const SPLIT_MINTS: PublicKey[] = [PublicKey.default];
 
 async function main() {
   const provider = anchor.AnchorProvider.env();
@@ -109,7 +113,7 @@ async function main() {
   console.log("\nSplitter PDA:", viewer.splitterInfoPda.toString());
 
   const sig2 = await program.methods
-    .initialize()
+    .initialize(SPLIT_MINTS)
     .accounts(viewer.accountsInitialize())
     .rpc();
   console.log("Splitter initialized:", sig2);

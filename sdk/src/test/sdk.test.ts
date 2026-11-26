@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import { Wallet } from "ethers";
 import {
   ConsentMerkleTree,
+  decryptDatasetPayload,
+  deriveScopedDatasetKeyHex,
+  encryptDatasetPayload,
   hashUserId,
   isValidSolanaPubkey,
   signSetBeneficiaryMeta,
@@ -96,4 +99,20 @@ test("SolanaDataUnionClient builds admin modify_shares and SPL transfer-hook wit
   assert.equal(withdrawPlan.instruction, "withdraw");
   assert.equal(withdrawPlan.args.tokenIndex, 1);
   assert.equal(withdrawPlan.accounts.mint, mint);
+});
+
+test("Client-side AES-256-GCM dataset encryption enforces context AAD and detects tampering", () => {
+  const key = deriveScopedDatasetKeyHex("sdk-master-secret", "0xdep1", "0xdata1");
+  const ctx = "0xdep1:0xdata1";
+  const envelope = encryptDatasetPayload({ records: 42, topic: "news" }, key, ctx);
+
+  const decrypted = decryptDatasetPayload<{ records: number; topic: string }>(envelope, key, ctx);
+  assert.equal(decrypted.records, 42);
+  assert.equal(decrypted.topic, "news");
+
+  // Wrong context must fail
+  assert.throws(() => decryptDatasetPayload(envelope, key, "0xdep2:0xdata1"));
+  // Tampered auth tag must fail
+  const tampered = { ...envelope, authTagHex: "00".repeat(16) };
+  assert.throws(() => decryptDatasetPayload(tampered, key, ctx));
 });
