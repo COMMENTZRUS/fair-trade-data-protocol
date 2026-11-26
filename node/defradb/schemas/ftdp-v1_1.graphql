@@ -1,0 +1,29 @@
+# Evolved FTDP v1.1 schema for cross-Deployment LensVM migrations (1.0.0 -> 1.1.0)
+type FtdpAnonRecord @policy(id: "<ANON_POLICY_ID>", resource: "ftdp_anon_records") {
+  recordId: String @index(unique: true)
+  deploymentId: String @index
+  uidHash: String @index
+  dataId: String @index
+  schemaVersion: String
+  timestamp: Int @index
+  source: String
+  flags: String
+  unionCategory: String @index
+  anonJson: String
+}
+
+type FtdpPiiVault @policy(id: "<PII_POLICY_ID>", resource: "ftdp_pii_vault") {
+  recordId: String @index(unique: true)
+  deploymentId: String @index
+  uidHash: String @index
+  piiCiphertext: String @encrypted
+  kmsKeyVersion: String
+  timestamp: Int
+}
+
+type FtdpConsentState @policy(id: "<ANON_POLICY_ID>", resource: "ftdp_anon_records") {
+  deploymentId: String @index
+  uidHash: String @index
+  flags: String
+  updatedAt: Int
+}

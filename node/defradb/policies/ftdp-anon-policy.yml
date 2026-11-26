@@ -1,0 +1,15 @@
+name: "FTDP Anon Record Policy"
+description: "Governs de-identified FTDP records eligible for Data Union licensing."
+resources:
+  - name: "ftdp_anon_records"
+relations:
+  - name: "deployment_writer"
+  - name: "licensed_reader"
+  - name: "deployment_admin"
+permissions:
+  - name: "read"
+    expr: "licensed_reader + deployment_writer + deployment_admin"
+  - name: "update"
+    expr: "deployment_writer + deployment_admin"
+  - name: "delete"
+    expr: "deployment_admin"

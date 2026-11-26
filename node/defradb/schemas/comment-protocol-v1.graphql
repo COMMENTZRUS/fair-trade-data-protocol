@@ -1,0 +1,35 @@
+# FTDP Comment Protocol v1 — DefraDB Collections (Apache-2.0 / MIT defradb.rs)
+# Replicates across Top News, RateMyVideo, Streamy, and Panorama peers under ftdp_anon_records ACP.
+
+type CommentRecord @policy(id: "<ANON_POLICY_ID>", resource: "ftdp_anon_records") {
+  recordId: String @index(unique: true)
+  deploymentId: String @index
+  uidHash: String @index
+  targetUri: String @index
+  parentId: String @index
+  body: String
+  flags: String
+  timestamp: Int @index
+}
+
+type RatingRecord @policy(id: "<ANON_POLICY_ID>", resource: "ftdp_anon_records") {
+  recordId: String @index(unique: true)
+  deploymentId: String @index
+  uidHash: String @index
+  targetUri: String @index
+  score: Float
+  maxScore: Float
+  review: String
+  flags: String
+  timestamp: Int @index
+}
+
+type VoteRecord @policy(id: "<ANON_POLICY_ID>", resource: "ftdp_anon_records") {
+  recordId: String @index(unique: true)
+  deploymentId: String @index
+  uidHash: String @index
+  targetUri: String @index
+  direction: Int
+  flags: String
+  timestamp: Int @index
+}

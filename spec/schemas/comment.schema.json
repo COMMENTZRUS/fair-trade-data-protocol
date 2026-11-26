@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fairtradedata.org/schemas/v1/comment.schema.json",
+  "title": "FTDP Comment Protocol v1 Anon Payload",
+  "type": "object",
+  "required": ["kind", "targetUri"],
+  "properties": {
+    "kind": {
+      "type": "string",
+      "enum": ["comment", "rating", "vote"]
+    },
+    "targetUri": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9+.-]*://.+$"
+    },
+    "parentId": {
+      "type": "string",
+      "description": "Optional parent recordId for nested threads"
+    },
+    "body": {
+      "type": "string",
+      "maxLength": 10000
+    },
+    "score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 10
+    },
+    "maxScore": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 10
+    },
+    "review": {
+      "type": "string",
+      "maxLength": 5000
+    },
+    "direction": {
+      "type": "integer",
+      "enum": [-1, 1]
+    },
+    "contributorWallet": {
+      "type": "string",
+      "pattern": "^0x[0-9a-fA-F]{40}$"
+    }
+  }
+}

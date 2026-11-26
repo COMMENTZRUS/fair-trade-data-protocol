@@ -1,0 +1,14 @@
+{
+  "name": "fair-trade-data-protocol",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Fair Trade Data Protocol (FTDP) monorepo: spec, hardened MultiSplitter Data Unions, SLS contracts, Solana unions, @ftdp/sdk, ftdp-node, and FTDP Portal",
+  "scripts": {
+    "test:contracts": "npm run test:evm --prefix contracts",
+    "test:sdk": "npm run build --prefix sdk && npm test --prefix sdk",
+    "test:node": "npm run build --prefix node && npm test --prefix node",
+    "test:cross-stack": "node scripts/test-cross-stack.js",
+    "typecheck:portal": "node apps/portal/node_modules/typescript/bin/tsc -p apps/portal/tsconfig.json --noEmit",
+    "verify:all": "npm run test:contracts && npm run test:sdk && npm run test:node && npm run test:cross-stack && npm run typecheck:portal"
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fairtradedata.org/schemas/v1/record.schema.json",
+  "title": "FTDP Consent-Segregated User Record",
+  "type": "object",
+  "required": ["meta", "flags", "anon"],
+  "additionalProperties": false,
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": ["recordId", "deploymentId", "uidHash", "schemaVersion", "timestamp"],
+      "additionalProperties": true,
+      "properties": {
+        "recordId": { "type": "string", "minLength": 1 },
+        "deploymentId": {
+          "type": "string",
+          "pattern": "^0x[0-9a-fA-F]{64}$",
+          "description": "bytes32 FTDP Deployment identifier registered in ClientConfigManager"
+        },
+        "uidHash": {
+          "type": "string",
+          "pattern": "^0x[0-9a-fA-F]{64}$",
+          "description": "keccak256 pseudonymous user identifier used in opt-in Merkle leaves"
+        },
+        "dataId": {
+          "type": "string",
+          "pattern": "^0x[0-9a-fA-F]{64}$",
+          "description": "Optional bytes32 dataset/stream classification"
+        },
+        "schemaVersion": { "type": "string", "const": "1.0.0" },
+        "timestamp": { "type": "integer", "minimum": 0 },
+        "source": {
+          "type": "string",
+          "enum": ["webSdk", "mobileNode", "serverApi", "csvImport", "webhook"]
+        }
+      }
+    },
+    "flags": {
+      "type": "string",
+      "pattern": "^(0x[0-9a-fA-F]+|[0-9]+)$",
+      "description": "uint256 bitmask of active user consent flags"
+    },
+    "anon": {
+      "type": "object",
+      "description": "De-identified event, engagement, curation, or karma payload eligible for Data Union licensing"
+    },
+    "pii": {
+      "type": "object",
+      "description": "Optional encrypted or segregated PII fields, never exposed to anon-only grants"
+    }
+  }
+}

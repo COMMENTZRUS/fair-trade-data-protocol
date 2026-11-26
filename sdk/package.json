@@ -1,0 +1,19 @@
+{
+  "name": "@ftdp/sdk",
+  "version": "1.0.0",
+  "description": "Fair Trade Data Protocol (FTDP) TypeScript SDK, Data Union EVM client, Merkle consent engine, and embeddable web snippet",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc && node scripts/build-snippet.js",
+    "test": "node --test dist/test/*.test.js"
+  },
+  "dependencies": {
+    "ethers": "^6.13.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.2"
+  }
+}

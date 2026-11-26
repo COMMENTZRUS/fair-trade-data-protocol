@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build & compiler artifacts
+dist/
+build/
+artifacts/
+cache/
+typechain-types/
+target/
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Local runtime state & PII vaults
+ftdp-state.json
+ftdp-pii-vault.json
+*.log
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

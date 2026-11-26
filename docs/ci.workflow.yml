@@ -1,0 +1,75 @@
+name: FTDP CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install contract dependencies
+        working-directory: contracts
+        run: npm install --no-audit --no-fund
+      - name: Compile with solc-js & run pure-JS EVM suite
+        working-directory: contracts
+        run: npm run test:evm
+      - name: Compile & test with Hardhat
+        working-directory: contracts
+        run: npx hardhat test
+
+  sdk-and-node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build & test @ftdp/sdk
+        working-directory: sdk
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+          npm test
+      - name: Build & test @ftdp/node
+        working-directory: node
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+          npm test
+
+  cross-stack-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install & build all layers
+        run: |
+          npm install --prefix contracts --no-audit --no-fund
+          npm run compile:solc --prefix contracts
+          npm install --prefix sdk --no-audit --no-fund
+          npm run build --prefix sdk
+          npm install --prefix node --no-audit --no-fund
+          npm run build --prefix node
+      - name: Run full cross-stack SDK -> Node -> Solidity EVM test
+        run: node scripts/test-cross-stack.js
+
+  portal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Typecheck & build FTDP Portal
+        working-directory: apps/portal
+        run: |
+          npm install --no-audit --no-fund
+          npm run build

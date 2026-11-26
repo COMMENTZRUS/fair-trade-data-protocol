@@ -1,0 +1,60 @@
+services:
+  defradb:
+    image: ghcr.io/sourcenetwork/defradb-rs:latest # Apache-2.0 / MIT (never BSL 1.1 Go binary)
+    container_name: ftdp-defradb-rs
+    restart: unless-stopped
+    profiles: ["defradb"]
+    ports:
+      - "9181:9181"
+      - "9171:9171"
+    environment:
+      DEFRA_KEYRING_SECRET: "${DEFRA_KEYRING_SECRET:-dev-keyring-secret-change-me}"
+    volumes:
+      - defra_data:/root/.defradb
+    command: >
+      start
+      --url 0.0.0.0:9181
+      --p2paddr /ip4/0.0.0.0/tcp/9171
+      --acp-enable-local
+
+  ftdp-node:
+    build:
+      context: .
+      dockerfile: node/Dockerfile
+    container_name: ftdp-node
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: "4000"
+      HOST: "0.0.0.0"
+      FTDP_STORAGE_DRIVER: "${FTDP_STORAGE_DRIVER:-file}"
+      DEFRADB_URL: "${DEFRADB_URL:-}"
+      FTDP_DATA_DIR: "/data"
+      FTDP_SEED_DEMO: "${FTDP_SEED_DEMO:-true}"
+      FTDP_PII_MASTER_KEY: "${FTDP_PII_MASTER_KEY:-change-me-in-production}"
+      FTDP_API_KEY: "${FTDP_API_KEY:-}"
+      FTDP_JWT_SECRET: "${FTDP_JWT_SECRET:-change-me-in-production}"
+      FTDP_CORS_ORIGIN: "${FTDP_CORS_ORIGIN:-*}"
+      FTDP_RPC_URL: "${FTDP_RPC_URL:-}"
+      FTDP_CLIENT_CONFIG_ADDRESS: "${FTDP_CLIENT_CONFIG_ADDRESS:-}"
+      FTDP_ACCESS_PERMISSIONS_ADDRESS: "${FTDP_ACCESS_PERMISSIONS_ADDRESS:-}"
+      FTDP_OPERATOR_PRIVATE_KEY: "${FTDP_OPERATOR_PRIVATE_KEY:-}"
+    volumes:
+      - ftdp_data:/data
+
+  ftdp-portal:
+    build:
+      context: ./apps/portal
+      dockerfile: Dockerfile
+    container_name: ftdp-portal
+    restart: unless-stopped
+    depends_on:
+      ftdp-node:
+        condition: service_healthy
+    ports:
+      - "3000:80"
+
+volumes:
+  defra_data:
+  ftdp_data:

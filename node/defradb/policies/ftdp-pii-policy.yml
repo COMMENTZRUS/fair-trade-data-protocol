@@ -1,0 +1,14 @@
+name: "FTDP PII Vault Policy"
+description: "Strictly isolates encrypted PII compartments from anon-only buyers."
+resources:
+  - name: "ftdp_pii_vault"
+relations:
+  - name: "pii_custodian"
+  - name: "pii_explicit_reader"
+permissions:
+  - name: "read"
+    expr: "pii_custodian + pii_explicit_reader"
+  - name: "update"
+    expr: "pii_custodian"
+  - name: "delete"
+    expr: "pii_custodian"
