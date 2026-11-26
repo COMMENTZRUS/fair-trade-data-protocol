@@ -1,0 +1,11 @@
+.git
+**/node_modules
+contracts/build
+contracts/cache
+contracts/artifacts
+contracts-solana/**/target
+node/lenses/**/target
+apps/portal/dist
+**/*.log
+.env
+.env.local
