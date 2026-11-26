@@ -129,6 +129,26 @@ export default function App() {
   const [merkleRoot, setMerkleRoot] = useState<string>("Connect ftdp-node for live committed root");
   const [eventTopic, setEventTopic] = useState<string>("open-protocols");
 
+  // Website Onboarding (DNS TXT + Auto-Capture <head> Snippet) state
+  interface DomainRecord {
+    domain: string;
+    deploymentId: string;
+    txtHost: string;
+    txtValue: string;
+    verified: boolean;
+    verifiedAt?: number;
+  }
+  const [domainInput, setDomainInput] = useState<string>("news.example.com");
+  const [domains, setDomains] = useState<DomainRecord[]>([]);
+  const [activeDomain, setActiveDomain] = useState<DomainRecord | null>(null);
+  const [autoCapture, setAutoCapture] = useState({
+    pageViews: true,
+    forms: true,
+    clicks: true,
+    cookies: true,
+    scrollDepth: true,
+  });
+
   // Data Union metering & claim state
   const [meterResult, setMeterResult] = useState<{
     unionId: string;
@@ -184,7 +204,105 @@ export default function App() {
         if (d.merkleRoot) setMerkleRoot(`${d.merkleRoot} (${d.leafCount} leaves)`);
       })
       .catch(() => {});
+
+    fetch(`${nodeUrl}/api/v1/deployments/${encodeURIComponent(selectedDepId)}/domains`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d.data)) {
+          setDomains(d.data);
+          setActiveDomain(d.data[0] || null);
+        }
+      })
+      .catch(() => {});
   }, [nodeOnline, selectedDepId, nodeUrl]);
+
+  async function registerDomainChallenge(e: React.FormEvent) {
+    e.preventDefault();
+    const cleaned = domainInput
+      .trim()
+      .toLowerCase()
+      .replace(/^https?:\/\//, "")
+      .split("/")[0]
+      .split(":")[0]
+      .replace(/\.$/, "");
+    if (!cleaned || !cleaned.includes(".")) {
+      setStatusMsg({ text: "Enter a valid domain name (e.g. app.example.com).", isError: true });
+      return;
+    }
+
+    if (!nodeOnline) {
+      const previewToken = ethers.keccak256(ethers.toUtf8Bytes(`${selectedDepId}:${cleaned}`)).slice(2, 34);
+      const previewRec: DomainRecord = {
+        domain: cleaned,
+        deploymentId: selectedDepId,
+        txtHost: `_ftdp-verify.${cleaned}`,
+        txtValue: `ftdp-verify=${previewToken}`,
+        verified: false,
+      };
+      setDomains((prev) => [previewRec, ...prev.filter((d) => d.domain !== cleaned)]);
+      setActiveDomain(previewRec);
+      setStatusMsg({
+        text: `Generated sandbox DNS TXT challenge for ${cleaned}. Connect ftdp-node for live DNS verification.`,
+      });
+      return;
+    }
+
+    try {
+      const res = await fetch(`${nodeUrl}/api/v1/deployments/${encodeURIComponent(selectedDepId)}/domains`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain: cleaned }),
+      });
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.error || "Failed to generate DNS TXT challenge");
+      const rec = payload.data as DomainRecord;
+      setDomains((prev) => [rec, ...prev.filter((d) => d.domain !== rec.domain)]);
+      setActiveDomain(rec);
+      setStatusMsg({
+        text: `DNS TXT challenge ready: add ${rec.txtValue} at ${rec.txtHost} (or apex ${rec.domain}).`,
+      });
+    } catch (err) {
+      setStatusMsg({ text: String(err), isError: true });
+    }
+  }
+
+  async function verifyDomainChallenge(targetDomain: string) {
+    if (!nodeOnline) {
+      setDomains((prev) =>
+        prev.map((d) => (d.domain === targetDomain ? { ...d, verified: true, verifiedAt: Math.floor(Date.now() / 1000) } : d))
+      );
+      setActiveDomain((prev) =>
+        prev && prev.domain === targetDomain
+          ? { ...prev, verified: true, verifiedAt: Math.floor(Date.now() / 1000) }
+          : prev
+      );
+      setStatusMsg({ text: `Verified ${targetDomain} in sandbox preview mode.` });
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `${nodeUrl}/api/v1/deployments/${encodeURIComponent(selectedDepId)}/domains/verify`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ domain: targetDomain }),
+        }
+      );
+      const payload = await res.json();
+      if (!res.ok) {
+        throw new Error(payload.error || "DNS TXT record not found yet. Wait for DNS propagation and retry.");
+      }
+      const rec = payload.data as DomainRecord;
+      setDomains((prev) => prev.map((d) => (d.domain === rec.domain ? rec : d)));
+      setActiveDomain(rec);
+      setStatusMsg({
+        text: `Domain ${rec.domain} verified via ${payload.matchedHost || rec.txtHost}! Origin lock is now active.`,
+      });
+    } catch (err) {
+      setStatusMsg({ text: String(err), isError: true });
+    }
+  }
 
   async function connectWallet() {
     const eth = (window as unknown as { ethereum?: ethers.Eip1193Provider }).ethereum;
@@ -359,17 +477,25 @@ export default function App() {
     }
   }
 
-  const snippetCode = `<script src="https://fairtradedata.org/sdk/ftdp-snippet.js"></script>
+  const cleanNodeUrl = nodeUrl.replace(/\/+$/, "");
+  const snippetCode = `<!-- Paste inside <head> after verifying DNS TXT ownership -->
+<script src="${cleanNodeUrl}/sdk/ftdp-snippet.js"></script>
 <script>
   FTDP.init({
-    endpoint: "${nodeUrl}",
+    endpoint: "${cleanNodeUrl}",
     deploymentId: "${selectedDepId}",
-    namespace: "panorama",
-    userId: currentUser.id,
-    contributorWallet: currentUser.wallet,
-    consentFlags: "${activeFlagMask.toString()}"
+    namespace: "${activeDomain?.domain || "your-site.com"}",
+    consentFlags: "${activeFlagMask.toString()}", // set after user opt-in
+    contributorWallet: currentUser?.wallet || "",
+    autoCapture: {
+      pageViews: ${autoCapture.pageViews},
+      forms: ${autoCapture.forms},
+      clicks: ${autoCapture.clicks},
+      cookies: ${autoCapture.cookies},
+      scrollDepth: ${autoCapture.scrollDepth}
+    },
+    allowedCookies: ["theme", "locale"] // auth/session/JWT cookies are hard-blocked
   });
-  FTDP.track("article_curated", { topic: "${eventTopic}" });
 </script>`;
 
   const defraComposeCode = `# Self-host FTDP Reference Node + Apache-2.0/MIT defradb.rs
@@ -685,6 +811,147 @@ docker compose up -d
                     Emit Consented Event
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 3-Step Client Website Onboarding: DNS TXT Ownership + Auto-Capture <head> Snippet */}
+          <div className="card" style={{ marginTop: 18 }}>
+            <div className="row space-between" style={{ marginBottom: 12 }}>
+              <div>
+                <span className="badge green">Client Website Onboarding</span>
+                <h3 style={{ margin: "8px 0 4px" }}>
+                  Connect a Website via DNS TXT &amp; Auto-Capture <code>&lt;head&gt;</code> Snippet
+                </h3>
+                <p style={{ margin: 0 }}>
+                  Prove domain ownership with a DNS TXT record to lock browser <code>Origin</code>{" "}
+                  ingestion, then paste one <code>&lt;head&gt;</code> tag to stream consented forms,
+                  behavioral telemetry, and safe cookie metadata into your Data Union.
+                </p>
+              </div>
+              {activeDomain && (
+                <span className={`badge ${activeDomain.verified ? "green" : "amber"}`}>
+                  {activeDomain.verified ? `Verified ✓ (${activeDomain.domain})` : `Pending DNS (${activeDomain.domain})`}
+                </span>
+              )}
+            </div>
+
+            <div className="grid-2" style={{ marginTop: 14 }}>
+              <div className="tier-box">
+                <div className="badge">Step 1 • Register Domain</div>
+                <form onSubmit={registerDomainChallenge} className="row" style={{ marginTop: 10 }}>
+                  <input
+                    value={domainInput}
+                    onChange={(e) => setDomainInput(e.target.value)}
+                    placeholder="example.com or app.example.com"
+                    style={{ flex: 1, minWidth: 180 }}
+                  />
+                  <button type="submit" className="btn sm">
+                    Generate DNS TXT
+                  </button>
+                </form>
+
+                {domains.length > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6 }}>
+                      Deployment Domains
+                    </div>
+                    <div className="row" style={{ flexWrap: "wrap", gap: 6 }}>
+                      {domains.map((d) => (
+                        <button
+                          key={d.domain}
+                          type="button"
+                          className={`btn sm ${activeDomain?.domain === d.domain ? "" : "secondary"}`}
+                          onClick={() => setActiveDomain(d)}
+                        >
+                          {d.domain} {d.verified ? "✓" : "•"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="badge purple" style={{ marginTop: 16 }}>
+                  Step 2 • Verify DNS TXT Record
+                </div>
+                {activeDomain ? (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ fontSize: 12, color: "var(--muted)" }}>TXT Host (or apex {activeDomain.domain})</div>
+                    <div className="mono" style={{ color: "var(--accent)", marginBottom: 8 }}>
+                      {activeDomain.txtHost}
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--muted)" }}>TXT Value</div>
+                    <div className="mono" style={{ color: "var(--emerald)", marginBottom: 10, wordBreak: "break-all" }}>
+                      {activeDomain.txtValue}
+                    </div>
+                    <div className="row">
+                      <button
+                        type="button"
+                        className="btn secondary sm"
+                        onClick={() => copyText("DNS TXT value", activeDomain.txtValue)}
+                      >
+                        Copy TXT Value
+                      </button>
+                      <button
+                        type="button"
+                        className="btn emerald sm"
+                        onClick={() => verifyDomainChallenge(activeDomain.domain)}
+                      >
+                        {activeDomain.verified ? "Re-Verify DNS TXT" : "Verify DNS TXT"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p style={{ fontSize: 13, color: "var(--muted)", marginTop: 8, marginBottom: 0 }}>
+                    Enter your client domain above to generate a unique <code>_ftdp-verify</code> DNS
+                    TXT challenge.
+                  </p>
+                )}
+              </div>
+
+              <div className="tier-box">
+                <div className="row space-between">
+                  <span className="badge green">Step 3 • Configure &amp; Paste &lt;head&gt; Snippet</span>
+                  <button
+                    type="button"
+                    className="btn sm"
+                    onClick={() => copyText("<head> auto-capture snippet", snippetCode)}
+                  >
+                    Copy Snippet
+                  </button>
+                </div>
+                <p style={{ fontSize: 12, color: "var(--muted)", margin: "8px 0" }}>
+                  Passwords, CVV/card/SSN inputs, and auth/session/JWT cookies are hard-blocked.
+                  Email/name/phone/address fields auto-route into the encrypted <code>pii</code> vault.
+                </p>
+                <div className="row" style={{ flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
+                  {(
+                    [
+                      ["pageViews", "Page Views & UTM"],
+                      ["forms", "Form Submissions"],
+                      ["clicks", "UI Clicks"],
+                      ["cookies", "Safe Cookie Meta"],
+                      ["scrollDepth", "Scroll Depth"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <label
+                      key={key}
+                      style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer" }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={autoCapture[key]}
+                        onChange={() =>
+                          setAutoCapture((prev) => ({ ...prev, [key]: !prev[key] }))
+                        }
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
+                <pre className="code" style={{ margin: 0, maxHeight: 270, overflow: "auto" }}>
+                  {snippetCode}
+                </pre>
               </div>
             </div>
           </div>

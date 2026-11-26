@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { DataUnionRecord, DeploymentConfig, FtdpRecord, MarketOfferSummary } from "@ftdp/sdk";
+import { DomainVerificationRecord } from "./domains";
 
 export interface OrganizationRecord {
   id: string;
@@ -33,6 +34,8 @@ export interface NodeSnapshot {
   anonRecords: Record<string, StoredAnonRecord[]>;
   /** marketAddress (lowercase) => MarketOfferSummary[] */
   marketOffers: Record<string, MarketOfferSummary[]>;
+  /** deploymentId => DNS TXT verified domain records */
+  domains?: Record<string, DomainVerificationRecord[]>;
 }
 
 export interface PiiSnapshot {
@@ -54,6 +57,7 @@ export class FtdpStore {
       userFlags: {},
       anonRecords: {},
       marketOffers: {},
+      domains: {},
     };
     this.piiVault = { piiRecords: {} };
     if (this.dataDir) {

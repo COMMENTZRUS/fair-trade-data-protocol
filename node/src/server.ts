@@ -1,4 +1,6 @@
 import crypto from "crypto";
+import fs from "fs";
+import path from "path";
 import http, { IncomingMessage, ServerResponse } from "http";
 import { ethers } from "ethers";
 import {
@@ -17,6 +19,13 @@ import { DefraClient } from "./defraClient";
 import { PiiEnvelopeCrypto } from "./piiCrypto";
 import { ChainBridge } from "./chainBridge";
 import { GrantExpirationReaper } from "./reaper";
+import {
+  createDomainChallenge,
+  isOriginAllowedForDeployment,
+  normalizeDomain,
+  TxtResolver,
+  verifyDomainTxtRecord,
+} from "./domains";
 
 export type CanReadVerifier = (params: {
   grantee: string;
@@ -41,6 +50,7 @@ export interface FtdpServerOptions {
   chainBridge?: ChainBridge;
   reaper?: GrantExpirationReaper;
   requireWriterSignature?: boolean;
+  txtResolver?: TxtResolver;
 }
 
 const MAX_BODY_BYTES = 1024 * 1024; // 1 MiB
@@ -216,7 +226,27 @@ export function createFtdpServer(options: FtdpServerOptions) {
     };
 
     try {
-      // Health, readiness, metrics
+      // Health, readiness, metrics, and hosted browser snippet
+      if (method === "GET" && pathname === "/sdk/ftdp-snippet.js") {
+        const snippetCandidates = [
+          path.resolve(__dirname, "..", "..", "sdk", "dist", "ftdp-snippet.js"),
+          path.resolve(__dirname, "..", "node_modules", "@ftdp", "sdk", "dist", "ftdp-snippet.js"),
+        ];
+        for (const p of snippetCandidates) {
+          if (fs.existsSync(p)) {
+            return {
+              status: 200,
+              headers: {
+                ...baseHeaders,
+                "Content-Type": "application/javascript; charset=utf-8",
+                "Cache-Control": "public, max-age=300",
+              },
+              body: fs.readFileSync(p, "utf8"),
+            };
+          }
+        }
+        return reply(404, { error: "ftdp-snippet.js not built yet" });
+      }
       if (method === "GET" && pathname === "/health") {
         return reply(200, { status: "ok", service: "ftdp-node", version: "1.0.0" });
       }
@@ -310,6 +340,11 @@ export function createFtdpServer(options: FtdpServerOptions) {
       if (ingestMatch && method === "POST") {
         if (!requireKey()) return reply(401, { error: "Unauthorized" });
         const deploymentId = decodeURIComponent(ingestMatch[1]);
+        const origin = typeof headers.origin === "string" ? headers.origin : undefined;
+        const depDomains = store.state.domains?.[deploymentId] || [];
+        if (!isOriginAllowedForDeployment(origin, depDomains)) {
+          return reply(403, { error: `Origin ${origin} is not a verified domain for deployment ${deploymentId}` });
+        }
         const body = parseBody();
         const validated = validateFtdpRecord(body, deploymentId);
         if (!validated.ok) return reply(400, { error: validated.error });
@@ -588,6 +623,70 @@ export function createFtdpServer(options: FtdpServerOptions) {
         return reply(201, { data: offer, postedBy: wallet });
       }
 
+      // Domain Ownership Verification (DNS TXT) for Client <head> Snippet Onboarding
+      const domainsMatch = pathname.match(/^\/api\/v1\/deployments\/([^/]+)\/domains$/);
+      if (domainsMatch) {
+        const deploymentId = decodeURIComponent(domainsMatch[1]);
+        if (!store.state.domains) store.state.domains = {};
+        if (method === "GET") {
+          return reply(200, { deploymentId, data: store.state.domains[deploymentId] || [] });
+        }
+        if (method === "POST") {
+          if (!requireKey()) return reply(401, { error: "Unauthorized" });
+          const body = parseBody() as { domain?: string };
+          if (typeof body.domain !== "string" || !body.domain.trim()) {
+            return reply(400, { error: "domain is required" });
+          }
+          const normalized = normalizeDomain(body.domain);
+          const list = store.state.domains[deploymentId] || [];
+          const existing = list.find((d) => d.domain === normalized);
+          if (existing) {
+            return reply(200, { data: existing });
+          }
+          const challenge = createDomainChallenge(deploymentId, normalized);
+          list.push(challenge);
+          store.state.domains[deploymentId] = list;
+          store.persist();
+          return reply(201, {
+            data: challenge,
+            instructions: `Add a DNS TXT record at ${challenge.txtHost} (or ${challenge.domain}) with value: ${challenge.txtValue}`,
+          });
+        }
+      }
+
+      const verifyDomainMatch = pathname.match(/^\/api\/v1\/deployments\/([^/]+)\/domains\/verify$/);
+      if (verifyDomainMatch && method === "POST") {
+        if (!requireKey()) return reply(401, { error: "Unauthorized" });
+        const deploymentId = decodeURIComponent(verifyDomainMatch[1]);
+        const body = parseBody() as { domain?: string };
+        if (typeof body.domain !== "string" || !body.domain.trim()) {
+          return reply(400, { error: "domain is required" });
+        }
+        const normalized = normalizeDomain(body.domain);
+        const list = store.state.domains?.[deploymentId] || [];
+        const record = list.find((d) => d.domain === normalized);
+        if (!record) return reply(404, { error: "Domain challenge not found; register domain first" });
+
+        const check = await verifyDomainTxtRecord(record, options.txtResolver);
+        if (!check.verified) {
+          return reply(400, {
+            verified: false,
+            domain: record.domain,
+            expectedTxtHost: record.txtHost,
+            expectedTxtValue: record.txtValue,
+            error: "Matching DNS TXT record not found yet",
+          });
+        }
+        record.verified = true;
+        record.verifiedAt = Math.floor(Date.now() / 1000);
+        store.persist();
+        return reply(200, {
+          verified: true,
+          matchedHost: check.matchedHost,
+          data: record,
+        });
+      }
+
       // =========================================================================
       // DefraDB + EVM Bridge Gateway Endpoints (/v1/records, /v1/merkle/commit, /v1/query/anon, /v1/reaper/run)
       // =========================================================================
@@ -595,6 +694,11 @@ export function createFtdpServer(options: FtdpServerOptions) {
         if (!requireKey()) return reply(401, { error: "Unauthorized" });
         const raw = parseBody() as { meta?: { deploymentId?: string } };
         const depId = raw?.meta?.deploymentId || "";
+        const origin = typeof headers.origin === "string" ? headers.origin : undefined;
+        const depDomains = store.state.domains?.[depId] || [];
+        if (!isOriginAllowedForDeployment(origin, depDomains)) {
+          return reply(403, { error: `Origin ${origin} is not a verified domain for deployment ${depId}` });
+        }
         const validated = validateFtdpRecord(raw, depId);
         if (!validated.ok) return reply(400, { error: validated.error });
         const rec = validated.record;
@@ -995,7 +1099,12 @@ export function createFtdpServer(options: FtdpServerOptions) {
       return reply(404, { error: `Route not found: ${method} ${pathname}` });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Internal server error";
-      const status = msg === "Payload too large" ? 413 : msg === "Invalid JSON body" ? 400 : 500;
+      const status =
+        msg === "Payload too large"
+          ? 413
+          : msg === "Invalid JSON body" || msg.startsWith("Invalid domain name:")
+          ? 400
+          : 500;
       return reply(status, { error: msg });
     }
   }
