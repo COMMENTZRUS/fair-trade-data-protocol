@@ -11,6 +11,7 @@ ENV NODE_ENV=production
 ENV PORT=4000
 COPY --from=builder /workspace/sdk/dist ./sdk/dist
 COPY --from=builder /workspace/sdk/package.json ./sdk/package.json
+COPY --from=builder /workspace/sdk/node_modules ./sdk/node_modules
 COPY --from=builder /workspace/node/dist ./node/dist
 COPY --from=builder /workspace/node/package.json ./node/package.json
 COPY --from=builder /workspace/node/node_modules ./node/node_modules
