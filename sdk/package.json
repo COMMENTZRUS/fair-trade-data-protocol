@@ -4,7 +4,16 @@
   "description": "Fair Trade Data Protocol (FTDP) TypeScript SDK, Data Union EVM client, Merkle consent engine, and embeddable web snippet",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/COMMENTZRUS/fair-trade-data-protocol.git",
+    "directory": "sdk"
+  },
+  "files": [
+    "dist",
+    "!dist/test/**"
+  ],
   "scripts": {
     "build": "tsc && node scripts/build-snippet.js",
     "test": "node --test dist/test/*.test.js"

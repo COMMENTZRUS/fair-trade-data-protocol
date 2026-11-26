@@ -8,7 +8,11 @@
     "compile:solc": "node scripts/compile-solc.js",
     "test": "hardhat test",
     "test:evm": "node scripts/compile-solc.js && node scripts/run-evm-tests.js",
-    "deploy:local": "hardhat run scripts/deploy.ts"
+    "deploy:local": "hardhat run scripts/deploy.ts",
+    "deploy:dry-run": "node scripts/deploy-live-evm.js --network baseSepolia --with-3tier-union --dry-run",
+    "deploy:base-sepolia": "node scripts/deploy-live-evm.js --network baseSepolia --with-3tier-union",
+    "deploy:gnosis-chiado": "node scripts/deploy-live-evm.js --network gnosisChiado --with-3tier-union",
+    "deploy:base": "node scripts/deploy-live-evm.js --network base --with-3tier-union"
   },
   "devDependencies": {
     "@ethereumjs/common": "^10.1.3",
