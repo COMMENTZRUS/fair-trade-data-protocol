@@ -3,9 +3,21 @@
   publish = "dist"
 
 [[redirects]]
+  from = "/sdk/*"
+  to = "/sdk/:splat"
+  status = 200
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
+[[headers]]
+  for = "/sdk/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Cache-Control = "public, max-age=300"
+    X-Content-Type-Options = "nosniff"
 
 [[headers]]
   for = "/*"

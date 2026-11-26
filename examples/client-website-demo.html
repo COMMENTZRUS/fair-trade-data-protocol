@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FTDP Auto-Capture &lt;head&gt; Snippet Demo</title>
+
+    <!-- Step 1: Load the hosted FTDP auto-capture snippet (after DNS TXT verification) -->
+    <script src="http://localhost:4000/sdk/ftdp-snippet.js"></script>
+    <script>
+      window.addEventListener("DOMContentLoaded", function () {
+        if (!window.FTDP) return;
+        FTDP.init({
+          endpoint: "http://localhost:4000",
+          deploymentId: "0x" + "11".repeat(32),
+          namespace: location.hostname || "demo.example.com",
+          consentFlags: "7", // Bit 0 (Analytics) | Bit 1 (News Union) | Bit 2 (AI Training)
+          contributorWallet: "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+          autoCapture: {
+            pageViews: true,
+            forms: true,
+            clicks: true,
+            cookies: true,
+            scrollDepth: true
+          },
+          allowedCookies: ["theme", "locale"]
+        });
+      });
+    </script>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 680px; margin: 40px auto; padding: 0 16px; line-height: 1.5; }
+      form { display: grid; gap: 12px; padding: 18px; border: 1px solid #d1d5db; border-radius: 10px; }
+      label { display: grid; gap: 4px; font-size: 14px; }
+      input, select, button { padding: 8px 10px; font-size: 14px; }
+      .note { background: #f3f4f6; padding: 12px; border-radius: 8px; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <h1>FTDP Website Onboarding Demo</h1>
+    <p class="note">
+      This page demonstrates the consent-gated <code>&lt;head&gt;</code> snippet. Submitting the form below
+      automatically routes <code>email</code> and <code>full_name</code> into the encrypted <code>pii</code>
+      vault, puts <code>topic</code> and <code>plan</code> into <code>anon</code>, and hard-drops
+      <code>password</code> and <code>cvv</code> before leaving the browser.
+    </p>
+
+    <form id="newsletter-signup" onsubmit="event.preventDefault(); document.getElementById('status').textContent = 'Form captured by FTDP snippet (check network tab for POST /v1/records).';">
+      <label>Full Name (auto-routed to encrypted PII vault)<input name="full_name" type="text" value="Alice Reader" /></label>
+      <label>Email (auto-routed to encrypted PII vault)<input name="email" type="email" value="alice@example.com" /></label>
+      <label>Favorite Topic (routed to anon)<select name="topic"><option value="open-protocols">Open Protocols</option><option value="ai">AI</option></select></label>
+      <label>Plan Tier (routed to anon)<input name="plan" type="text" value="community" /></label>
+      <label>Password (HARD-BLOCKED — never leaves browser)<input name="password" type="password" value="do-not-capture" /></label>
+      <label>Card CVV (HARD-BLOCKED — never leaves browser)<input name="cvv" type="text" value="999" /></label>
+      <button type="submit" data-ftdp-track="signup_submit">Submit Consented Form</button>
+    </form>
+    <p id="status"></p>
+  </body>
+</html>

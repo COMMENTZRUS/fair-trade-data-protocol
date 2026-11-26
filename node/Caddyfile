@@ -1,0 +1,15 @@
+# Automatic Let's Encrypt TLS reverse proxy for FTDP Reference Node (staging / production)
+# Set FTDP_API_DOMAIN=api-staging.fairtradedata.org (or api.fairtradedata.org)
+
+{$FTDP_API_DOMAIN:api-staging.fairtradedata.org} {
+    encode zstd gzip
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer"
+    }
+
+    reverse_proxy ftdp-node:4000
+}

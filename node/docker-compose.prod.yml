@@ -1,0 +1,32 @@
+# Production / Staging TLS overlay for FTDP Reference Node + Apache-2.0/MIT defradb.rs
+# Usage:
+#   FTDP_API_DOMAIN=api-staging.fairtradedata.org docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#   ./defradb/bootstrap-defradb.sh
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: ftdp-caddy-tls
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      FTDP_API_DOMAIN: ${FTDP_API_DOMAIN:-api-staging.fairtradedata.org}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - ftdp-node
+
+  ftdp-node:
+    restart: unless-stopped
+    environment:
+      FTDP_ENABLE_WORKERS: ${FTDP_ENABLE_WORKERS:-true}
+      FTDP_SEED_DEMO: ${FTDP_SEED_DEMO:-false}
+      FTDP_CORS_ORIGIN: ${FTDP_CORS_ORIGIN:-https://fairtradedata.org}
+
+volumes:
+  caddy_data:
+  caddy_config:

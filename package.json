@@ -9,8 +9,9 @@
     "test:sdk": "npm run build --prefix sdk && npm test --prefix sdk",
     "test:node": "npm run build --prefix node && npm test --prefix node",
     "test:cross-stack": "node scripts/test-cross-stack.js",
+    "test:examples": "node scripts/test-examples.js",
     "smoke:node": "node scripts/smoke-live-node.js",
     "typecheck:portal": "node apps/portal/node_modules/typescript/bin/tsc -p apps/portal/tsconfig.json --noEmit",
-    "verify:all": "npm run test:contracts && npm run fuzz:contracts && npm run test:sdk && npm run test:node && npm run test:cross-stack && npm run smoke:node && npm run typecheck:portal"
+    "verify:all": "npm run test:contracts && npm run fuzz:contracts && npm run test:sdk && npm run test:node && npm run test:cross-stack && npm run test:examples && npm run smoke:node && npm run typecheck:portal"
   }
 }

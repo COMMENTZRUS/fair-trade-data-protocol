@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
+    "sync:snippet": "node scripts/sync-snippet.mjs",
+    "dev": "npm run sync:snippet && vite",
+    "build": "npm run sync:snippet && tsc && vite build",
     "preview": "vite preview"
   },
   "dependencies": {

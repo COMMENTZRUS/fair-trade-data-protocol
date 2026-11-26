@@ -819,6 +819,83 @@ test("Phase 4 v2: ComputeToDataEscrow enforces AccessPermissions, pays Data Unio
   assert.strictEqual(await usdc.call("balanceOf", buyerAdmin.address), balBeforeRefund + refundFee);
 });
 
+test("3-Tier Cascading AutoPull Data Union: Tier-1 Root -> Tier-2 Comment Protocol -> Tier-3 Top News & RateMyVideo", async () => {
+  const env = await createTestEnv();
+  const [admin, ftdfTreasury, panoramaPool, streamyPool, topNewsUser, rmvUser, payer] = env.wallets;
+
+  const usdc = await env.deploy(admin, "MockERC20", ["USD Coin", "USDC", 6]);
+  await usdc.tx(admin, "mint", [payer.address, ethers.parseUnits("100000", 6)]);
+  const tokens = [ethers.ZeroAddress, usdc.address];
+
+  const factory = await env.deploy(admin, "DataUnionFactory", [tokens, admin.address]);
+
+  // Tier-1 Root
+  await factory.tx(admin, "createAdminDataUnion", ["root", "FTDP Root", admin.address, tokens, ethers.ZeroAddress, 0n]);
+  const rootAddr = await factory.call("allUnions", 0);
+  const root = env.bind(rootAddr, "AdminControlledSplitter");
+
+  // Tier-2 Comment Protocol (upstream = root)
+  await factory.tx(admin, "createAdminDataUnion", ["comment-t2", "Comment Protocol", admin.address, tokens, rootAddr, 0n]);
+  const commentAddr = await factory.call("allUnions", 1);
+  const comment = env.bind(commentAddr, "AdminControlledSplitter");
+
+  // Tier-3 Top News & RateMyVideo (upstream = comment)
+  await factory.tx(admin, "createAdminDataUnion", ["topnews-t3", "Top News", admin.address, tokens, commentAddr, 0n]);
+  const topNewsAddr = await factory.call("allUnions", 2);
+  const topNews = env.bind(topNewsAddr, "AdminControlledSplitter");
+
+  await factory.tx(admin, "createAdminDataUnion", ["rmv-t3", "RateMyVideo", admin.address, tokens, commentAddr, 0n]);
+  const rmvAddr = await factory.call("allUnions", 3);
+  const rmv = env.bind(rmvAddr, "AdminControlledSplitter");
+
+  // Tier-1 weights: 5% FTDF, 35% Panorama, 25% Streamy, 35% Comment Protocol
+  await root.tx(admin, "setSharesMulti", [[
+    { shareholder: ftdfTreasury.address, shares: 500n },
+    { shareholder: panoramaPool.address, shares: 3500n },
+    { shareholder: streamyPool.address, shares: 2500n },
+    { shareholder: commentAddr, shares: 3500n },
+  ]]);
+
+  // Tier-2 Comment Protocol weights: 55% Top News, 45% RateMyVideo
+  await comment.tx(admin, "setSharesMulti", [[
+    { shareholder: topNewsAddr, shares: 5500n },
+    { shareholder: rmvAddr, shares: 4500n },
+  ]]);
+
+  // Tier-3 contributors: 100% Top News user, 100% RateMyVideo user
+  await topNews.tx(admin, "setShares", [topNewsUser.address, 1000n]);
+  await rmv.tx(admin, "setShares", [rmvUser.address, 1000n]);
+
+  // Stream 10,000 USDC into Tier-1 Root
+  // Expected:
+  //   FTDF = 500 USDC
+  //   Panorama = 3,500 USDC
+  //   Streamy = 2,500 USDC
+  //   Comment Protocol (Tier-2) = 3,500 USDC
+  //     -> Top News (Tier-3, 55% of 3,500) = 1,925 USDC
+  //     -> RateMyVideo (Tier-3, 45% of 3,500) = 1,575 USDC
+  await usdc.tx(payer, "transfer", [rootAddr, ethers.parseUnits("10000", 6)]);
+
+  // Single O(1) withdrawAll() at Tier-3 triggers cascading AutoPull: Tier-3 -> Tier-2 -> Tier-1!
+  await topNews.tx(topNewsUser, "withdrawAll", [topNewsUser.address, usdc.address]);
+  await rmv.tx(rmvUser, "withdrawAll", [rmvUser.address, usdc.address]);
+  await root.tx(ftdfTreasury, "withdrawAll", [ftdfTreasury.address, usdc.address]);
+  await root.tx(panoramaPool, "withdrawAll", [panoramaPool.address, usdc.address]);
+  await root.tx(streamyPool, "withdrawAll", [streamyPool.address, usdc.address]);
+
+  assert.strictEqual(await usdc.call("balanceOf", ftdfTreasury.address), ethers.parseUnits("500", 6));
+  assert.strictEqual(await usdc.call("balanceOf", panoramaPool.address), ethers.parseUnits("3500", 6));
+  assert.strictEqual(await usdc.call("balanceOf", streamyPool.address), ethers.parseUnits("2500", 6));
+  assert.strictEqual(await usdc.call("balanceOf", topNewsUser.address), ethers.parseUnits("1925", 6));
+  assert.strictEqual(await usdc.call("balanceOf", rmvUser.address), ethers.parseUnits("1575", 6));
+
+  // Zero dust trapped across all 4 cascading splitters
+  assert.strictEqual(await usdc.call("balanceOf", rootAddr), 0n);
+  assert.strictEqual(await usdc.call("balanceOf", commentAddr), 0n);
+  assert.strictEqual(await usdc.call("balanceOf", topNewsAddr), 0n);
+  assert.strictEqual(await usdc.call("balanceOf", rmvAddr), 0n);
+});
+
 (async () => {
   let passed = 0;
   let failed = 0;

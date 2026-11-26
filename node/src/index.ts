@@ -1,11 +1,12 @@
 import { ethers } from "ethers";
-import { hashUserId, STANDARD_CONSENT_FLAGS } from "@ftdp/sdk";
+import { ADMIN_SPLITTER_ABI, hashUserId, STANDARD_CONSENT_FLAGS } from "@ftdp/sdk";
 import { createFtdpServer } from "./server";
 import { FtdpStore } from "./store";
 import { DefraClient } from "./defraClient";
 import { PiiEnvelopeCrypto } from "./piiCrypto";
 import { EthersChainBridge } from "./chainBridge";
 import { GrantExpirationReaper } from "./reaper";
+import { DualChainMeteringWorker, MerkleCommitWorker } from "./workers";
 
 function seedDemoData(store: FtdpStore) {
   if (Object.keys(store.state.deployments).length > 0) return;
@@ -171,6 +172,62 @@ const chainBridge =
 const reaper = new GrantExpirationReaper(defraClient);
 reaper.startInterval(Number(process.env.FTDP_REAPER_INTERVAL_MS || 60_000));
 
+let merkleWorker: MerkleCommitWorker | undefined;
+let meteringWorker: DualChainMeteringWorker | undefined;
+
+if (process.env.FTDP_ENABLE_WORKERS === "true") {
+  if (chainBridge) {
+    merkleWorker = new MerkleCommitWorker(store, chainBridge);
+    merkleWorker.start(Number(process.env.FTDP_MERKLE_INTERVAL_MS || 300_000));
+  }
+
+  const rpcUrl = process.env.FTDP_RPC_URL;
+  const operatorKey = process.env.FTDP_OPERATOR_PRIVATE_KEY;
+  if (rpcUrl && operatorKey) {
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const wallet = new ethers.Wallet(operatorKey, provider);
+    meteringWorker = new DualChainMeteringWorker({
+      store,
+      evmSigner: wallet,
+      evmChainId: BigInt(process.env.FTDP_CHAIN_ID || "8453"),
+      getEvmNonce: async (splitterAddress) => {
+        const splitter = new ethers.Contract(splitterAddress, ADMIN_SPLITTER_ABI, provider);
+        return BigInt(await splitter.nonces(wallet.address));
+      },
+      onEvmRelay: async (payload) => {
+        const splitter = new ethers.Contract(payload.splitterAddress, ADMIN_SPLITTER_ABI, wallet);
+        const tx = await splitter.setSharesMultiMeta(
+          payload.updates.map((u) => ({ shareholder: u.shareholder, shares: u.shares })),
+          payload.deadline,
+          payload.v,
+          payload.r,
+          payload.s
+        );
+        console.log(
+          JSON.stringify({
+            level: "info",
+            msg: "relayed EVM setSharesMultiMeta",
+            unionId: payload.unionId,
+            txHash: tx.hash,
+          })
+        );
+      },
+      solanaOwnerPubkey: process.env.FTDP_SOLANA_OWNER_PUBKEY || undefined,
+      onSolanaRelay: async (unionId, plans) => {
+        console.log(
+          JSON.stringify({
+            level: "info",
+            msg: "generated Solana Data Union modify_shares plans",
+            unionId,
+            instructionCount: plans.length,
+          })
+        );
+      },
+    });
+    meteringWorker.start(Number(process.env.FTDP_METERING_INTERVAL_MS || 600_000));
+  }
+}
+
 const { server } = createFtdpServer({
   store,
   apiKey: process.env.FTDP_API_KEY || undefined,
@@ -192,6 +249,7 @@ server.listen(port, host, () => {
       host,
       port,
       storageDriver: defraClient ? "defradb" : process.env.FTDP_DATA_DIR ? "file" : "memory",
+      workersEnabled: Boolean(merkleWorker || meteringWorker),
     })
   );
 });
@@ -200,6 +258,8 @@ for (const sig of ["SIGINT", "SIGTERM"] as const) {
   process.on(sig, () => {
     console.log(JSON.stringify({ level: "info", msg: "shutting down ftdp-node", signal: sig }));
     reaper.stopInterval();
+    merkleWorker?.stop();
+    meteringWorker?.stop();
     server.close(() => process.exit(0));
   });
 }
