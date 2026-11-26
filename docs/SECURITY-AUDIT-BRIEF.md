@@ -13,9 +13,8 @@ This document prepares the **Fair Trade Data Protocol (`fair-trade-data-protocol
    - `FtdToken.sol`, `FtdAccessStaking.sol`, `DataUnionGovernor.sol`, `ComputeToDataEscrow.sol`
 
 ### Standalone Solana Anchor Programs (`contracts-solana/`)
-1. `contracts-solana/admin-union/` — Admin-controlled O(1) SOL splitter (Anchor 0.30.1).
-2. `contracts-solana/spl-union/` — Token-2022 Transfer-Hook multi-token SPL splitter (Anchor 0.32.1).
-   - *Auditor focus note*: Both standalone Solana programs currently use `f64` for `last_recorded_rps` / `rps_at_last_share_change`; auditors should review precision bounds for high-decimal SPL tokens and evaluate upgrading to `u128` fixed-point scaling if needed before large TVL.
+1. `contracts-solana/admin-union/` — Admin-controlled O(1) SOL splitter (Anchor 0.30.1), upgraded to checked **`u128` fixed-point `RPS_PRECISION = 1e18`**, rent-exempt reserve guard, and `mut` `sol_token_stats` fix.
+2. `contracts-solana/spl-union/` — Token-2022 Transfer-Hook multi-token SPL splitter (Anchor 0.32.1), upgraded to checked **`u128` fixed-point `RPS_PRECISION = 1e18`** with SPL ATA mint/owner verification in both `withdraw.rs` and `transfer_hook.rs`.
 
 ## 2. Core Security Invariants to Verify
 

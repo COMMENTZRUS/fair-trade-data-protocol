@@ -45,6 +45,7 @@ pub struct AddUser<'info> {
       )]
     pub sol_balance_info: Account<'info, BalanceInfo>,
     #[account(
+        mut,
         seeds = [splitter_info.key().as_ref(), "SOL".as_bytes()],
         bump
     )]

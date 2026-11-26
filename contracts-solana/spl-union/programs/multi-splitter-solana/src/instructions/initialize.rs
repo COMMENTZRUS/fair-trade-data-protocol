@@ -12,7 +12,7 @@ pub fn initialize(ctx: Context<InitSplitter>, split_mints: Vec<Pubkey>) -> Resul
 
     ctx.accounts.token_stats.last_recorded_total_received = vec![0u64; n];
     ctx.accounts.token_stats.total_withdrawn = vec![0u64; n];
-    ctx.accounts.token_stats.last_recorded_rps = vec![0.0f64; n];
+    ctx.accounts.token_stats.last_recorded_rps = vec![0u128; n];
     Ok(())
 }
 

@@ -4,25 +4,32 @@ use crate::state::token_stats::*;
 use crate::state::user_info::*;
 use anchor_lang::prelude::*;
 
+pub const RPS_PRECISION: u128 = 1_000_000_000_000_000_000;
+
 pub fn total_received<'info>(splitter_info: &Account<'info, SplitterInfo>, token_stats: &TokenStats) -> u64 {
-    return splitter_info.get_lamports() + token_stats.total_withdrawn - splitter_info.initial_lamports;
+    splitter_info
+        .get_lamports()
+        .saturating_add(token_stats.total_withdrawn)
+        .saturating_sub(splitter_info.initial_lamports)
 }
 
 pub fn unaccounted_tokens<'info>(splitter_info: &Account<'info, SplitterInfo>, token_stats: &TokenStats) -> u64 {
-    return total_received(splitter_info, token_stats) - token_stats.last_recorded_total_received;
+    total_received(splitter_info, token_stats).saturating_sub(token_stats.last_recorded_total_received)
 }
 
 pub fn rps<'info>(
     splitter_info: &Account<'info, SplitterInfo>,
     token_stats: &TokenStats,
-) -> f64 {
+) -> u128 {
     if splitter_info.total_shares == 0 {
         return token_stats.last_recorded_rps;
     }
-    let unaccounted_rps :f64 = (unaccounted_tokens(splitter_info, token_stats) as f64) / (splitter_info.total_shares as f64);
-    return token_stats.last_recorded_rps + unaccounted_rps;
+    let unaccounted = unaccounted_tokens(splitter_info, token_stats) as u128;
+    let unaccounted_rps = unaccounted
+        .saturating_mul(RPS_PRECISION)
+        / (splitter_info.total_shares as u128);
+    token_stats.last_recorded_rps.saturating_add(unaccounted_rps)
 }
-
 
 pub fn unrecorded_allotment<'info>(
     splitter_info: &Account<'info, SplitterInfo>,
@@ -30,9 +37,14 @@ pub fn unrecorded_allotment<'info>(
     token_stats: &TokenStats,
     balance_info: &BalanceInfo,
 ) -> u64 {
-    return ((user_info.shares as f64)
-        * (rps(splitter_info, token_stats) - balance_info.rps_at_last_share_change))
-        as u64;
+    if splitter_info.total_shares == 0 || user_info.shares == 0 {
+        return 0;
+    }
+    let delta_rps = rps(splitter_info, token_stats).saturating_sub(balance_info.rps_at_last_share_change);
+    let earned = (user_info.shares as u128)
+        .saturating_mul(delta_rps)
+        / RPS_PRECISION;
+    u64::try_from(earned).unwrap_or(u64::MAX)
 }
 
 pub fn total_allotment<'info>(
@@ -41,7 +53,9 @@ pub fn total_allotment<'info>(
     token_stats: &TokenStats,
     balance_info: &BalanceInfo,
 ) -> u64 {
-    return balance_info.accrual + unrecorded_allotment(splitter_info, user_info, token_stats, balance_info)
+    balance_info
+        .accrual
+        .saturating_add(unrecorded_allotment(splitter_info, user_info, token_stats, balance_info))
 }
 
 pub fn available_allotment<'info>(
@@ -50,7 +64,7 @@ pub fn available_allotment<'info>(
     token_stats: &TokenStats,
     balance_info: &BalanceInfo,
 ) -> u64 {
-    return total_allotment(splitter_info, user_info, token_stats, balance_info) - balance_info.withdrawn
+    total_allotment(splitter_info, user_info, token_stats, balance_info).saturating_sub(balance_info.withdrawn)
 }
 
 pub fn save_rps<'info>(
@@ -60,16 +74,20 @@ pub fn save_rps<'info>(
     if splitter_info.total_shares == 0 {
         return;
     }
-    let unaccounted : u64 = unaccounted_tokens(splitter_info, token_stats);
-    //msg!("unaccounted {}", unaccounted);
-    //msg!("token_stats.last_recorded_total_received {}", token_stats.last_recorded_total_received);
-
+    let unaccounted = unaccounted_tokens(splitter_info, token_stats);
     if unaccounted == 0 {
-        return
+        return;
     }
-    token_stats.last_recorded_total_received += unaccounted;
-    //msg!("token_stats.last_recorded_total_received {}", token_stats.last_recorded_total_received);
-    token_stats.last_recorded_rps += (unaccounted as f64) / (splitter_info.total_shares as f64);
+    let delta_rps = (unaccounted as u128)
+        .saturating_mul(RPS_PRECISION)
+        / (splitter_info.total_shares as u128);
+    if delta_rps == 0 {
+        return;
+    }
+    token_stats.last_recorded_total_received = token_stats
+        .last_recorded_total_received
+        .saturating_add(unaccounted);
+    token_stats.last_recorded_rps = token_stats.last_recorded_rps.saturating_add(delta_rps);
 }
 
 pub fn save_accrual<'info>(
@@ -77,10 +95,11 @@ pub fn save_accrual<'info>(
     user_info: &UserInfo,
     token_stats: &TokenStats,
     balance_info: &mut BalanceInfo,
-
 ) {
-    balance_info.accrual += unrecorded_allotment(splitter_info, user_info, token_stats, balance_info);
-    balance_info.rps_at_last_share_change = rps(splitter_info, token_stats)
+    balance_info.accrual = balance_info
+        .accrual
+        .saturating_add(unrecorded_allotment(splitter_info, user_info, token_stats, balance_info));
+    balance_info.rps_at_last_share_change = rps(splitter_info, token_stats);
 }
 
 /*

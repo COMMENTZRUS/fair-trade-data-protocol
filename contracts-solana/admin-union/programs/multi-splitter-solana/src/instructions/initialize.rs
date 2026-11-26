@@ -8,7 +8,7 @@ pub fn initialize(ctx: Context<InitSplitter>, _splitter_id: String) -> Result<()
     ctx.accounts.splitter_info.initial_lamports = ctx.accounts.splitter_info.get_lamports();
     ctx.accounts.splitter_info.total_users = 0;
     ctx.accounts.splitter_info.total_shares = 0;
-    ctx.accounts.sol_token_stats.last_recorded_rps = 0.0;
+    ctx.accounts.sol_token_stats.last_recorded_rps = 0u128;
     ctx.accounts.sol_token_stats.last_recorded_total_received = 0;
     ctx.accounts.sol_token_stats.total_withdrawn = 0;
     

@@ -9,7 +9,7 @@ pub fn register(ctx: Context<Register>, _token_account: Pubkey) -> Result<()> {
         let n = ctx.accounts.splitter_info.split_mints.len();
         bal.accrual = vec![0u64; n];
         bal.withdrawn = vec![0u64; n];
-        bal.rps_at_last_share_change = vec![0.0f64; n];
+        bal.rps_at_last_share_change = vec![0u128; n];
     }
     msg!("Registered balance_info {}", bal.key());
     Ok(())

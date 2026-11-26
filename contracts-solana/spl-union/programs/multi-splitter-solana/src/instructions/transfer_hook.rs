@@ -98,7 +98,7 @@ fn create_balance_info_if_needed<'info>(
     let default_bal = BalanceInfo {
         accrual: vec![0u64; num_tokens],
         withdrawn: vec![0u64; num_tokens],
-        rps_at_last_share_change: vec![0.0f64; num_tokens],
+        rps_at_last_share_change: vec![0u128; num_tokens],
     };
     let mut data = balance_info_account.try_borrow_mut_data()?;
     data[..8].copy_from_slice(&BalanceInfo::DISCRIMINATOR);
