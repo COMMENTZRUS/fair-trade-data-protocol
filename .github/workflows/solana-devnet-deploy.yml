@@ -12,6 +12,11 @@ on:
           - both
           - admin-union
           - spl-union
+      reclaim_program_ids:
+        description: "Optional space-separated old Devnet Program IDs to close and reclaim rent SOL before deploying"
+        required: false
+        default: ""
+        type: string
 
 jobs:
   deploy-solana-devnet:
@@ -33,6 +38,7 @@ jobs:
       - name: Configure Solana Devnet Deployer Keypair
         env:
           SOLANA_DEVNET_KEYPAIR_JSON: ${{ secrets.SOLANA_DEVNET_KEYPAIR_JSON }}
+          RECLAIM_IDS: ${{ inputs.reclaim_program_ids }}
         run: |
           mkdir -p ~/.config/solana
           if [ -n "$SOLANA_DEVNET_KEYPAIR_JSON" ]; then
@@ -42,6 +48,12 @@ jobs:
             solana airdrop 2 --url devnet || true
           fi
           solana config set --url devnet
+          if [ -n "$RECLAIM_IDS" ]; then
+            for pid in $RECLAIM_IDS; do
+              echo "Reclaiming Devnet rent from old program $pid..."
+              solana program close "$pid" --bypass-warning || true
+            done
+          fi
           solana address
           solana balance
 
@@ -52,7 +64,14 @@ jobs:
           avm use 0.30.1
           anchor build
           anchor keys sync
+          # Rebuild so the synced declare_id!() matches the freshly generated program keypair
+          anchor build
           anchor deploy --provider.cluster devnet
+          ADMIN_PID=$(solana address -k target/deploy/multi_splitter_solana-keypair.json)
+          echo "ADMIN_UNION_PROGRAM_ID=$ADMIN_PID"
+          echo "### FTDP Admin Union (Devnet)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Program ID: \`$ADMIN_PID\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Solscan: https://solscan.io/account/$ADMIN_PID?cluster=devnet" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Build & Deploy FTDP SPL Transfer-Hook Union (Anchor 0.32.1)
         if: ${{ inputs.program == 'both' || inputs.program == 'spl-union' }}
@@ -61,4 +80,11 @@ jobs:
           avm use 0.32.1
           anchor build
           anchor keys sync
+          # Rebuild so the synced declare_id!() matches the freshly generated program keypair (prevents 0x1004 on IDL init)
+          anchor build
           anchor deploy --provider.cluster devnet
+          SPL_PID=$(solana address -k target/deploy/multi_splitter_solana-keypair.json)
+          echo "SPL_UNION_PROGRAM_ID=$SPL_PID"
+          echo "### FTDP SPL Transfer-Hook Union (Devnet)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Program ID: \`$SPL_PID\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Solscan: https://solscan.io/account/$SPL_PID?cluster=devnet" >> "$GITHUB_STEP_SUMMARY"
