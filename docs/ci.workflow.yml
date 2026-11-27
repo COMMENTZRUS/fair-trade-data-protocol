@@ -77,6 +77,17 @@ jobs:
           cargo test
           cargo build --target wasm32-unknown-unknown --release
 
+  solana-programs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check standalone FTDP Solana Admin MultiSplitter (u128 RPS)
+        working-directory: contracts-solana/admin-union
+        run: cargo check
+      - name: Check standalone FTDP Solana SPL Token-2022 Transfer-Hook MultiSplitter (u128 RPS)
+        working-directory: contracts-solana/spl-union
+        run: cargo check
+
   portal:
     runs-on: ubuntu-latest
     steps:

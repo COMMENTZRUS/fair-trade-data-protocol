@@ -1,0 +1,64 @@
+name: Deploy FTDP Standalone Solana Programs (Devnet)
+
+on:
+  workflow_dispatch:
+    inputs:
+      program:
+        description: "Which standalone FTDP Solana program to build and deploy"
+        required: true
+        default: "both"
+        type: choice
+        options:
+          - both
+          - admin-union
+          - spl-union
+
+jobs:
+  deploy-solana-devnet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Agave / Solana CLI (x86_64 Linux)
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - name: Install Anchor CLI via AVM
+        run: |
+          cargo install --git https://github.com/coral-xyz/anchor avm --force
+          avm install 0.30.1
+          avm install 0.32.1
+
+      - name: Configure Solana Devnet Deployer Keypair
+        env:
+          SOLANA_DEVNET_KEYPAIR_JSON: ${{ secrets.SOLANA_DEVNET_KEYPAIR_JSON }}
+        run: |
+          mkdir -p ~/.config/solana
+          if [ -n "$SOLANA_DEVNET_KEYPAIR_JSON" ]; then
+            printf '%s' "$SOLANA_DEVNET_KEYPAIR_JSON" > ~/.config/solana/id.json
+          else
+            solana-keygen new --no-bip39-passphrase --force -o ~/.config/solana/id.json
+            solana airdrop 2 --url devnet || true
+          fi
+          solana config set --url devnet
+          solana address
+          solana balance
+
+      - name: Build & Deploy FTDP Admin Union (Anchor 0.30.1)
+        if: ${{ inputs.program == 'both' || inputs.program == 'admin-union' }}
+        working-directory: contracts-solana/admin-union
+        run: |
+          avm use 0.30.1
+          anchor build
+          anchor keys sync
+          anchor deploy --provider.cluster devnet
+
+      - name: Build & Deploy FTDP SPL Transfer-Hook Union (Anchor 0.32.1)
+        if: ${{ inputs.program == 'both' || inputs.program == 'spl-union' }}
+        working-directory: contracts-solana/spl-union
+        run: |
+          avm use 0.32.1
+          anchor build
+          anchor keys sync
+          anchor deploy --provider.cluster devnet
