@@ -1,30 +1,23 @@
 /**
- * Pure-JS EVM Live Deployment Runner (Ethers v6 + solc-js artifacts)
+ * Pure-JS Optional EVM Live Deployment Runner (Ethers v6 + solc-js artifacts)
  * Works identically on Linux, macOS, and Windows ARM64 (zero native Hardhat binary dependency).
+ * Note: Solana (`contracts-solana/`) is FTDP's canonical live chain; this script is for optional Gnosis/Ethereum EVM deployments.
  *
  * Usage:
  *   # Dry-run plan check (no private key / no RPC spent):
- *   node contracts/scripts/deploy-live-evm.js --network baseSepolia --with-3tier-union --dry-run
+ *   node contracts/scripts/deploy-live-evm.js --network gnosisChiado --with-3tier-union --dry-run
  *
  *   # Live testnet deploy (reads DEPLOYER_PRIVATE_KEY from env or contracts/.env):
- *   node contracts/scripts/deploy-live-evm.js --network baseSepolia --with-3tier-union
+ *   node contracts/scripts/deploy-live-evm.js --network gnosisChiado --with-3tier-union
  *
  *   # Live mainnet deploy (requires FTDF_MULTISIG_ADDRESS != deployer, USDC_ADDRESS):
- *   node contracts/scripts/deploy-live-evm.js --network base --with-3tier-union
+ *   node contracts/scripts/deploy-live-evm.js --network gnosis --with-3tier-union
  */
 const fs = require("node:fs");
 const path = require("node:path");
 const { ethers } = require("ethers");
 
 const NETWORKS = {
-  baseSepolia: {
-    name: "baseSepolia",
-    chainId: 84532,
-    rpcEnv: "BASE_SEPOLIA_RPC_URL",
-    defaultRpc: "https://sepolia.base.org",
-    explorer: "https://sepolia.basescan.org",
-    isMainnet: false,
-  },
   gnosisChiado: {
     name: "gnosisChiado",
     chainId: 10200,
@@ -40,14 +33,6 @@ const NETWORKS = {
     defaultRpc: "https://ethereum-sepolia-rpc.publicnode.com",
     explorer: "https://sepolia.etherscan.io",
     isMainnet: false,
-  },
-  base: {
-    name: "base",
-    chainId: 8453,
-    rpcEnv: "BASE_RPC_URL",
-    defaultRpc: "https://mainnet.base.org",
-    explorer: "https://basescan.org",
-    isMainnet: true,
   },
   gnosis: {
     name: "gnosis",
@@ -93,7 +78,7 @@ function loadArtifact(contractName) {
 }
 
 function parseArgs(argv) {
-  const out = { network: "baseSepolia", dryRun: false, with3TierUnion: false };
+  const out = { network: "gnosisChiado", dryRun: false, with3TierUnion: false };
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--dry-run") out.dryRun = true;

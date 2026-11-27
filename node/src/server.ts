@@ -475,7 +475,7 @@ export function createFtdpServer(options: FtdpServerOptions) {
           chainMode: inferredMode,
           evm: hasValidEvm
             ? {
-                chainId: body.evm?.chainId ?? 8453,
+                chainId: body.evm?.chainId ?? 100,
                 splitterAddress: evmSplitter!,
                 sharesTokenAddress: body.evm?.sharesTokenAddress || body.sharesTokenAddress,
                 upstreamSplitterAddress: body.evm?.upstreamSplitterAddress || body.upstreamSplitterAddress,

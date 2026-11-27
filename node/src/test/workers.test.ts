@@ -98,7 +98,7 @@ test("DualChainMeteringWorker signs EIP-712 EVM updates & builds Solana Anchor p
   const worker = new DualChainMeteringWorker({
     store,
     evmSigner: evmAdmin,
-    evmChainId: 8453n,
+    evmChainId: 100n,
     solanaOwnerPubkey: solOwner,
     requiredFlags: STANDARD_CONSENT_FLAGS.KARMA_REPUTATION,
     onEvmRelay: async (p) => { evmPayloads.push(p); },

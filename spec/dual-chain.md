@@ -30,7 +30,7 @@ A Data Union registered in `ftdp-node` declares `chainMode: "evm" | "solana" | "
   "kind": "ADMIN_CONTROLLED",
   "splitterAddress": "0x2000000000000000000000000000000000000002",
   "evm": {
-    "chainId": 8453,
+    "chainId": 100,
     "splitterAddress": "0x2000000000000000000000000000000000000002",
     "upstreamSplitterAddress": "0x1000000000000000000000000000000000000001"
   },

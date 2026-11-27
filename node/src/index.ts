@@ -189,7 +189,7 @@ if (process.env.FTDP_ENABLE_WORKERS === "true") {
     meteringWorker = new DualChainMeteringWorker({
       store,
       evmSigner: wallet,
-      evmChainId: BigInt(process.env.FTDP_CHAIN_ID || "8453"),
+      evmChainId: BigInt(process.env.FTDP_CHAIN_ID || "100"),
       getEvmNonce: async (splitterAddress) => {
         const splitter = new ethers.Contract(splitterAddress, ADMIN_SPLITTER_ABI, provider);
         return BigInt(await splitter.nonces(wallet.address));

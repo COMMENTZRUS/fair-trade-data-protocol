@@ -16,16 +16,6 @@ const config: HardhatUserConfig = {
   },
   networks: {
     hardhat: {},
-    baseSepolia: {
-      url: process.env.BASE_SEPOLIA_RPC_URL || "https://sepolia.base.org",
-      chainId: 84532,
-      accounts: DEPLOYER_KEY,
-    },
-    base: {
-      url: process.env.BASE_RPC_URL || "https://mainnet.base.org",
-      chainId: 8453,
-      accounts: DEPLOYER_KEY,
-    },
     gnosisChiado: {
       url: process.env.GNOSIS_CHIADO_RPC_URL || "https://rpc.chiadochain.net",
       chainId: 10200,

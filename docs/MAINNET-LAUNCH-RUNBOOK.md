@@ -40,18 +40,10 @@ git push origin main
 
 ---
 
-## 3. Dual-Chain Testnet Deployment (Milestone 3)
+## 3. Canonical Solana Devnet Deployment (Milestone 3)
 
-### EVM (Base Sepolia or Gnosis Chiado — works on Windows, macOS, and Linux)
-```bash
-# 1. Create contracts/.env with a funded Base Sepolia DEPLOYER_PRIVATE_KEY
-#    (Optional: set FTDF_MULTISIG_ADDRESS to a testnet Gnosis Safe)
-node contracts/scripts/deploy-live-evm.js --network baseSepolia --with-3tier-union --dry-run
-node contracts/scripts/deploy-live-evm.js --network baseSepolia --with-3tier-union
-```
-The script writes `contracts/deployments/baseSepolia.json` and prints the exact env vars (`FTDP_CHAIN_ID`, `FTDP_RPC_URL`, `FTDP_CLIENT_CONFIG_ADDRESS`, `FTDP_ACCESS_PERMISSIONS_ADDRESS`, `VITE_FTDP_MARKET_ADDRESS`) to paste into Railway & Vercel.
+FTDP's canonical live deployment chain is **Solana** (`Devnet` → `Mainnet-Beta`), using FTDP's standalone Anchor MultiSplitter Data Union programs (`contracts-solana/`, strictly independent from Panorama):
 
-### Standalone Solana Programs (Devnet — run on Linux / macOS / WSL2 with Anchor CLI)
 ```bash
 # Admin-Controlled MultiSplitter Data Union (u128 fixed-point RPS)
 cd contracts-solana/admin-union
@@ -60,6 +52,13 @@ anchor build && anchor keys sync && anchor deploy --provider.cluster devnet
 # Token-2022 Transfer-Hook SPL Data Union (u128 fixed-point RPS)
 cd ../spl-union
 anchor build && anchor keys sync && anchor deploy --provider.cluster devnet
+```
+
+### Optional EVM Reference Deployment (Gnosis Chiado / Ethereum Sepolia)
+If deploying the optional MIT EVM reference contracts (`contracts/`):
+```bash
+node contracts/scripts/deploy-live-evm.js --network gnosisChiado --with-3tier-union --dry-run
+node contracts/scripts/deploy-live-evm.js --network gnosisChiado --with-3tier-union
 ```
 
 ---
@@ -88,11 +87,11 @@ Hand off [`docs/SECURITY-AUDIT-BRIEF.md`](./SECURITY-AUDIT-BRIEF.md) covering:
 
 ## 6. Mainnet Launch & FTDF Multisig Handover (Milestone 6)
 
-1. Provision production **Gnosis Safe** (`FTDF_MULTISIG_ADDRESS` on Base / Gnosis / Ethereum) and **Squads v4 Multisig** (Solana Mainnet-Beta).
-2. Deploy audited EVM contracts with mandatory multisig handover and canonical USDC:
+1. Provision production **Squads v4 Multisig** on Solana `mainnet-beta`.
+2. Deploy audited standalone Solana programs (`contracts-solana/admin-union` & `contracts-solana/spl-union`) to `mainnet-beta` and transfer upgrade authority to the FTDF Squads Multisig (or lock immutable with `--final`).
+3. *(Optional EVM)* If deploying the optional EVM suite on Gnosis Chain or Ethereum, deploy behind a Gnosis Safe (`FTDF_MULTISIG_ADDRESS`):
    ```bash
-   FTDF_MULTISIG_ADDRESS=0x... USDC_ADDRESS=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 \
-     node contracts/scripts/deploy-live-evm.js --network base --with-3tier-union
+   FTDF_MULTISIG_ADDRESS=0x... USDC_ADDRESS=0x... \
+     node contracts/scripts/deploy-live-evm.js --network gnosis --with-3tier-union
    ```
-3. Deploy audited Solana programs to `mainnet-beta` and set upgrade authority to the FTDF Squads Multisig (or `--final`).
-4. Flip `FTDP_SEED_DEMO=false`, `FTDP_ENABLE_WORKERS=true`, and `FTDP_CORS_ORIGIN=https://fairtradedata.org` on `ftdp-node`, and update `VITE_FTDP_NODE_URL` + `VITE_FTDP_MARKET_ADDRESS` on Vercel.
+4. Flip `FTDP_SEED_DEMO=false`, `FTDP_ENABLE_WORKERS=true`, `FTDP_SOLANA_CLUSTER=mainnet-beta`, and `FTDP_CORS_ORIGIN=https://fairtradedata.org` on `ftdp-node`, and update `VITE_FTDP_NODE_URL` on Vercel.

@@ -177,7 +177,7 @@ export class DualChainMeteringWorker {
         const deadline = BigInt(nowSec + 3600);
         const signed = await signSetSharesMultiMeta(this.opts.evmSigner, {
           splitterAddress: evmSplitter,
-          chainId: this.opts.evmChainId ?? BigInt(union.evm?.chainId ?? 8453),
+          chainId: this.opts.evmChainId ?? BigInt(union.evm?.chainId ?? 100),
           updates: evmUpdates,
           nonce,
           deadline,
