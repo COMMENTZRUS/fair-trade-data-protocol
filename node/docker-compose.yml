@@ -2,23 +2,21 @@
 # CAUTION: Strictly uses sourcenetwork/defradb.rs (NOT the BSL 1.1 Go binary).
 services:
   defradb:
-    image: ghcr.io/sourcenetwork/defradb-rs:latest # Pin to an exact release tag in production
+    build:
+      context: ..
+      dockerfile: node/defradb/Dockerfile
     container_name: ftdp-defradb-rs
     restart: unless-stopped
     ports:
       - "9181:9181" # HTTP / GraphQL (DQL) API
       - "9171:9171" # libp2p P2P sync port
     environment:
+      PORT: "9181"
       DEFRA_KEYRING_SECRET: "${DEFRA_KEYRING_SECRET:-dev-keyring-secret-change-me}"
     volumes:
-      - defra_data:/root/.defradb
-    command: >
-      start
-      --url 0.0.0.0:9181
-      --p2paddr /ip4/0.0.0.0/tcp/9171
-      --acp-enable-local
+      - defra_data:/data/defradb
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9181/health-check || curl -sf http://127.0.0.1:9181/health-check || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:9181/health-check || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5

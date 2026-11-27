@@ -57,7 +57,7 @@ export class DefraClient {
   }
 
   async graphql<T>(query: string, variables?: Record<string, unknown>, actorToken?: string): Promise<T> {
-    const res = await this.fetchImpl(`${this.baseUrl}/api/v1/graphql`, {
+    const res = await this.fetchImpl(`${this.baseUrl}/api/v0/graphql`, {
       method: "POST",
       headers: this.headers(actorToken),
       body: JSON.stringify({ query, variables }),
@@ -67,7 +67,7 @@ export class DefraClient {
       const errMsg = json.errors?.map((e) => e.message).join("; ") || `HTTP ${res.status}`;
       throw new Error(`DefraDB GraphQL error: ${errMsg}`);
     }
-    return json.data as T;
+    return ((json.data !== undefined ? json.data : json) as unknown) as T;
   }
 
   async createAnonRecord(record: FtdpRecord): Promise<{ docId: string; cid?: string }> {
@@ -75,14 +75,13 @@ export class DefraClient {
       mutation CreateAnon($input: [FtdpAnonRecordMutationInputArg!]) {
         create_FtdpAnonRecord(input: $input) {
           _docID
-          _cid
           recordId
         }
       }
     `;
-    const data = await this.graphql<{
-      create_FtdpAnonRecord: Array<{ _docID: string; _cid?: string; recordId: string }>;
-    }>(mutation, {
+    const data = await this.graphql<
+      Record<string, Array<{ _docID?: string; _cid?: string; recordId?: string }> | { _docID?: string; _cid?: string; recordId?: string }>
+    >(mutation, {
       input: [
         {
           recordId: record.meta.recordId,
@@ -97,8 +96,11 @@ export class DefraClient {
         },
       ],
     });
-    const created = data.create_FtdpAnonRecord?.[0];
-    if (!created?._docID) throw new Error("DefraDB did not return _docID for FtdpAnonRecord");
+    const raw = data?.create_FtdpAnonRecord ?? Object.values(data || {})[0];
+    const created = Array.isArray(raw) ? raw[0] : raw;
+    if (!created?._docID) {
+      throw new Error(`DefraDB did not return _docID for FtdpAnonRecord (got: ${JSON.stringify(data)})`);
+    }
     return { docId: created._docID, cid: created._cid };
   }
 
@@ -107,10 +109,9 @@ export class DefraClient {
     actorToken?: string
   ): Promise<DefraAnonRow[]> {
     const query = `
-      query QueryAnon($deploymentId: String!, $dataId: String, $sinceTimestamp: Int) {
+      query QueryAnon($deploymentId: String!) {
         FtdpAnonRecord(filter: { deploymentId: { _eq: $deploymentId } }) {
           _docID
-          _cid
           recordId
           deploymentId
           uidHash
@@ -123,7 +124,11 @@ export class DefraClient {
         }
       }
     `;
-    const data = await this.graphql<{ FtdpAnonRecord: DefraAnonRow[] }>(query, filter, actorToken);
+    const data = await this.graphql<{ FtdpAnonRecord: DefraAnonRow[] }>(
+      query,
+      { deploymentId: filter.deploymentId },
+      actorToken
+    );
     const rows = data.FtdpAnonRecord || [];
     return rows.filter((row) => {
       if (filter.dataId && row.dataId && row.dataId.toLowerCase() !== filter.dataId.toLowerCase()) return false;
@@ -141,11 +146,14 @@ export class DefraClient {
         }
       }
     `;
-    const data = await this.graphql<{
-      create_FtdpPiiVault: Array<{ _docID: string }>;
-    }>(mutation, { input: [input] });
-    const created = data.create_FtdpPiiVault?.[0];
-    if (!created?._docID) throw new Error("DefraDB did not return _docID for FtdpPiiVault");
+    const data = await this.graphql<
+      Record<string, Array<{ _docID?: string }> | { _docID?: string }>
+    >(mutation, { input: [input] });
+    const raw = data?.create_FtdpPiiVault ?? Object.values(data || {})[0];
+    const created = Array.isArray(raw) ? raw[0] : raw;
+    if (!created?._docID) {
+      throw new Error(`DefraDB did not return _docID for FtdpPiiVault (got: ${JSON.stringify(data)})`);
+    }
     return { docId: created._docID };
   }
 
@@ -187,7 +195,7 @@ export class DefraClient {
     relation: string;
     actorDid: string;
   }): Promise<void> {
-    const res = await this.fetchImpl(`${this.baseUrl}/api/v1/acp/document/relationship`, {
+    const res = await this.fetchImpl(`${this.baseUrl}/api/v0/acp/document/relationship`, {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify(params),
@@ -201,7 +209,7 @@ export class DefraClient {
     relation: string;
     actorDid: string;
   }): Promise<void> {
-    const res = await this.fetchImpl(`${this.baseUrl}/api/v1/acp/document/relationship`, {
+    const res = await this.fetchImpl(`${this.baseUrl}/api/v0/acp/document/relationship`, {
       method: "DELETE",
       headers: this.headers(),
       body: JSON.stringify(params),
@@ -213,7 +221,7 @@ export class DefraClient {
     if (params.collection === "FtdpPiiVault") {
       throw new Error("SECURITY VIOLATION: FtdpPiiVault MUST NEVER be replicated to external P2P peers");
     }
-    const res = await this.fetchImpl(`${this.baseUrl}/api/v1/p2p/replicators`, {
+    const res = await this.fetchImpl(`${this.baseUrl}/api/v0/p2p/replicators`, {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify(params),
@@ -222,7 +230,7 @@ export class DefraClient {
   }
 
   async removeP2pReplicator(params: { collection: string; peerMultiaddr: string }): Promise<void> {
-    const res = await this.fetchImpl(`${this.baseUrl}/api/v1/p2p/replicators`, {
+    const res = await this.fetchImpl(`${this.baseUrl}/api/v0/p2p/replicators`, {
       method: "DELETE",
       headers: this.headers(),
       body: JSON.stringify(params),

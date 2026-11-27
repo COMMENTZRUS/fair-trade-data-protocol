@@ -35,21 +35,21 @@ function createMockDefraDb(operatorToken: string) {
       return new Response("Healthy", { status: 200 });
     }
 
-    if (url.pathname === "/api/v1/acp/document/relationship") {
+    if (url.pathname === "/api/v0/acp/document/relationship") {
       const key = `${body.collection}:${body.docId}:${body.relation}:${body.actorDid}`;
       if (method === "POST") relations.add(key);
       if (method === "DELETE") relations.delete(key);
       return new Response(JSON.stringify({ ok: true }), { status: 200 });
     }
 
-    if (url.pathname === "/api/v1/p2p/replicators") {
+    if (url.pathname === "/api/v0/p2p/replicators") {
       const key = `${body.collection}:${body.peerMultiaddr}`;
       if (method === "POST") replicators.add(key);
       if (method === "DELETE") replicators.delete(key);
       return new Response(JSON.stringify({ ok: true }), { status: 200 });
     }
 
-    if (url.pathname === "/api/v1/graphql") {
+    if (url.pathname === "/api/v0/graphql") {
       const q = String(body.query || "");
       const vars = (body.variables || {}) as Record<string, unknown>;
 

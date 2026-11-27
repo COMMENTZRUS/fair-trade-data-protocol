@@ -248,7 +248,14 @@ export function createFtdpServer(options: FtdpServerOptions) {
         return reply(404, { error: "ftdp-snippet.js not built yet" });
       }
       if (method === "GET" && pathname === "/health") {
-        return reply(200, { status: "ok", service: "ftdp-node", version: "1.0.0" });
+        const defradbConnected = defraClient ? await defraClient.healthCheck() : false;
+        return reply(200, {
+          status: "ok",
+          service: "ftdp-node",
+          version: "1.0.0",
+          storageDriver: defraClient ? "defradb" : "local",
+          defradbConnected,
+        });
       }
       if (method === "GET" && pathname === "/ready") {
         return reply(200, { ready: true, deployments: Object.keys(store.state.deployments).length });
