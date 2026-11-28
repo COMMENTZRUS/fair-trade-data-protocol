@@ -392,6 +392,7 @@ export default function App() {
   const [view, setView] = useState<ViewMode>("home");
   const [learnTopic, setLearnTopic] = useState<LearnTopic>("how-it-works");
   const [learnMenuOpen, setLearnMenuOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [openFaqs, setOpenFaqs] = useState<Record<number, boolean>>({});
   const [optInModal, setOptInModal] = useState<null | "optin" | "refer">(null);
   const [statusMsg, setStatusMsg] = useState<{ text: string; isError?: boolean } | null>(null);
@@ -433,12 +434,14 @@ export default function App() {
     setLearnTopic(topic);
     setView("learn");
     setLearnMenuOpen(false);
+    setMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function openDevelopers() {
     setView("developers");
     setLearnMenuOpen(false);
+    setMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -752,8 +755,121 @@ export default function App() {
               {solanaWallet ? `SOL ${solanaWallet.slice(0, 4)}...${solanaWallet.slice(-4)}` : "Connect Solana"}
             </button>
           </nav>
+
+          {/* Mobile Hamburger Button (shown <= 820px) */}
+          <button
+            type="button"
+            className="ftd-hamburger-btn"
+            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={mobileMenuOpen}
+            onClick={() => setMobileMenuOpen((o) => !o)}
+          >
+            {mobileMenuOpen ? (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            ) : (
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            )}
+          </button>
         </div>
       </header>
+
+      {/* Mobile Slide-Down Navigation Drawer */}
+      <nav
+        className={`ftd-mobile-drawer ${mobileMenuOpen ? "is-open" : ""}`}
+        aria-label="Mobile navigation"
+      >
+        <div className="ftd-mobile-drawer-list">
+          <button
+            type="button"
+            className={`ftd-mobile-link ${view === "home" ? "active" : ""}`}
+            onClick={() => {
+              setView("home");
+              setMobileMenuOpen(false);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+          >
+            Home
+          </button>
+
+          <div className="ftd-mobile-section-label">Learn (Plain English)</div>
+          <button
+            type="button"
+            className={`ftd-mobile-link sub ${view === "learn" && learnTopic === "how-it-works" ? "active" : ""}`}
+            onClick={() => openLearn("how-it-works")}
+          >
+            How It Works
+          </button>
+          <button
+            type="button"
+            className={`ftd-mobile-link sub ${view === "learn" && learnTopic === "data-unions" ? "active" : ""}`}
+            onClick={() => openLearn("data-unions")}
+          >
+            Data Unions &amp; O(1) Payouts
+          </button>
+          <button
+            type="button"
+            className={`ftd-mobile-link sub ${view === "learn" && learnTopic === "privacy-defradb" ? "active" : ""}`}
+            onClick={() => openLearn("privacy-defradb")}
+          >
+            Privacy &amp; Source defradb.rs
+          </button>
+          <button
+            type="button"
+            className={`ftd-mobile-link sub ${view === "learn" && learnTopic === "ecosystem" ? "active" : ""}`}
+            onClick={() => openLearn("ecosystem")}
+          >
+            Ecosystem &amp; Comment Protocol
+          </button>
+
+          <div className="ftd-mobile-section-label">Build &amp; Track</div>
+          <button
+            type="button"
+            className={`ftd-mobile-link ${view === "developers" ? "active" : ""}`}
+            onClick={openDevelopers}
+          >
+            Developers &amp; API Docs
+          </button>
+          <button
+            type="button"
+            className={`ftd-mobile-link ${view === "learn" && learnTopic === "roadmap" ? "active" : ""}`}
+            onClick={() => openLearn("roadmap")}
+          >
+            Delivery Roadmap
+          </button>
+
+          <div style={{ marginTop: "10px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="ftd-btn ftd-btn-primary ftd-btn-sm"
+              style={{ flex: 1 }}
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setOptInModal("optin");
+              }}
+            >
+              Join Community
+            </button>
+            <button
+              type="button"
+              className="ftd-btn ftd-btn-outline ftd-btn-sm"
+              style={{ flex: 1 }}
+              onClick={() => {
+                setMobileMenuOpen(false);
+                connectSolanaWallet();
+              }}
+            >
+              {solanaWallet ? `SOL ${solanaWallet.slice(0, 4)}...${solanaWallet.slice(-4)}` : "Connect Solana"}
+            </button>
+          </div>
+        </div>
+      </nav>
 
       {/* ==================== HOME VIEW (Exact 7-Section Clone + Plain-English Interactive Guides) ==================== */}
       {view === "home" && (
