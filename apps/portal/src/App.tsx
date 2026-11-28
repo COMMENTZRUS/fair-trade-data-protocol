@@ -1,25 +1,17 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ethers } from "ethers";
 import {
   DataUnion,
   DEMO_DEPLOYMENTS,
-  DEMO_OFFERS,
   DEMO_UNIONS,
   Deployment,
-  MarketOffer,
   SOLANA_DEVNET_PROGRAMS,
 } from "./demoData";
+import { FeatureIcon, ProtocolFlowDiagram } from "./components/Graphics";
+import { LearnPages, LearnTopic } from "./components/LearnPages";
+import { DeveloperHub, DomainRecord } from "./components/DeveloperHub";
 
-type ViewMode = "home" | "developers" | "unions";
-
-interface DomainRecord {
-  domain: string;
-  deploymentId: string;
-  txtHost: string;
-  txtValue: string;
-  verified: boolean;
-  verifiedAt?: number;
-}
+type ViewMode = "home" | "learn" | "developers";
 
 const DEFAULT_NODE_URL =
   (import.meta.env.VITE_FTDP_NODE_URL as string) || "https://ftdp-node-production.up.railway.app";
@@ -39,6 +31,18 @@ const FAQ_ITEMS = [
   {
     q: "How are tokens valued?",
     a: "FTD protocol revenue is correlated to the aggregate data consumption on our network of data unions and fair trade data applications, the FTD token is required to read or write data to and from the network",
+  },
+  {
+    q: "Does Fair Trade Data ever capture or sell passwords, credit cards, or private emails?",
+    a: "Never. Passwords, CVV/card numbers, SSNs, file inputs, and auth/session/JWT cookies are hard-blocked inside the browser before any request is sent. Personal fields like email or name are automatically encrypted per website with AES-256-GCM inside a local-only Source Network defradb.rs vault that buyers cannot read or replicate.",
+  },
+  {
+    q: "How does a Data Union pay thousands of contributors without huge blockchain fees?",
+    a: "FTDP uses Constant-Time MultiSplitter programs on Solana (live on Devnet using checked u128 fixed-point precision). Each contributor claims their exact share in one O(1) transaction regardless of how many thousands of members are in the union, with zero retroactive dilution for early contributors.",
+  },
+  {
+    q: "Do I need to be a crypto developer to connect my website?",
+    a: "No. Verify your domain with a single DNS TXT record and paste one <script> tag into your website's <head>. Everything else—consent segregation, privacy filtering, Source Network storage, and Data Union metering—runs automatically.",
   },
 ];
 
@@ -70,65 +74,23 @@ const MARKETPLACE_CARDS = [
     image: "/images/market-gaming.jpg",
     alt: "Open Knowledgebase for Gaming Community + Agentic AI Coaching",
     title: "Open Knowledgebase for Gaming Community + Agentic AI Coaching",
+    blurb: "Players pool opted-in match signals to train AI coaching agents and split licensing payouts.",
   },
   {
     image: "/images/market-streamy.webp",
     alt: "Fair Trade Data Ad Network + Video Streaming via Decentralized Storage",
     title: "Fair Trade Data Ad Network + Video Streaming via Decentralized Storage",
+    blurb: "Consented video view receipts and ethical ad choices backed by Source Network defradb.rs.",
   },
   {
     image: "/images/market-ttn.png",
     alt: "Web 3 Native Discussion Boards for zk Voting + User Karma Data Unions via TTN",
     title: "Web 3 Native Discussion Boards for zk Voting + User Karma Data Unions via TTN",
+    blurb: "Open discussion threads, star ratings, and portable user karma shared across apps.",
   },
 ];
 
-const CONSENT_FLAGS = [
-  { bit: 0, label: "Analytics", desc: "De-identified app telemetry" },
-  { bit: 1, label: "News Data Union", desc: "Share engagement & curation into shared Data Unions" },
-  { bit: 2, label: "AI Training", desc: "License anonymized signals to AI labs" },
-  { bit: 3, label: "Ad Personalization", desc: "Fair Trade Data Ad Network preferences" },
-  { bit: 4, label: "Karma / Reputation", desc: "Web3 discussion board karma union" },
-];
-
-/** Exact FontAwesome-Light style 45x45 thin-line icons matching fairtradedata.org */
-function FeatureIcon({ kind }: { kind: "shield" | "nft" | "key" | "bars" }) {
-  if (kind === "shield") {
-    return (
-      <svg className="ftd-feature-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M24 5.5L39 11.2V22.4C39 32.3 32.5 39.7 24 43C15.5 39.7 9 32.3 9 22.4V11.2L24 5.5Z" />
-      </svg>
-    );
-  }
-  if (kind === "nft") {
-    return (
-      <svg className="ftd-feature-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M24 4.5L40.5 14V34L24 43.5L7.5 34V14L24 4.5Z" />
-        <text x="24" y="27.5" textAnchor="middle" fill="currentColor" stroke="none" fontFamily="Source Sans 3, sans-serif" fontWeight="600" fontSize="11.5" letterSpacing="0.5">
-          NFT
-        </text>
-      </svg>
-    );
-  }
-  if (kind === "key") {
-    return (
-      <svg className="ftd-feature-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <circle cx="30" cy="18" r="9.5" />
-        <circle cx="32.5" cy="15.5" r="2" fill="currentColor" stroke="none" />
-        <path d="M23 25L9 39V43H15V39H19V35H23L25.5 32.5" />
-      </svg>
-    );
-  }
-  return (
-    <svg className="ftd-feature-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="8" y="25" width="7" height="16" rx="1.8" />
-      <rect x="20.5" y="9" width="7" height="32" rx="1.8" />
-      <rect x="33" y="17" width="7" height="24" rx="1.8" />
-    </svg>
-  );
-}
-
-/** Exact Gamma scroll-reveal wrapper: opacity 0->1, translateY(20px)->0 over 1s cubic-bezier(0.22, 1, 0.36, 1) */
+/** Exact Gamma scroll-reveal physics: opacity 0->1, translateY(20px)->0 over 1s cubic-bezier(0.22, 1, 0.36, 1) */
 function Reveal({
   children,
   className = "",
@@ -158,7 +120,7 @@ function Reveal({
           }
         }
       },
-      { threshold: 0.1, rootMargin: "0px 0px -30px 0px" }
+      { threshold: 0.08, rootMargin: "0px 0px -24px 0px" }
     );
     observer.observe(el);
     return () => observer.disconnect();
@@ -182,8 +144,254 @@ function Reveal({
   );
 }
 
+/** Interactive Plain-English Privacy Firewall Sandbox ("Show, Don't Tell") */
+function LivePrivacyFirewallWidget({ onOpenDevelopers }: { onOpenDevelopers: () => void }) {
+  const [sampleEmail, setSampleEmail] = useState("alice@example.com");
+  const [sampleTopic, setSampleTopic] = useState("ai-coaching");
+  const [samplePlan, setSamplePlan] = useState("community-member");
+  const [samplePassword, setSamplePassword] = useState("MySecretPassword!");
+  const [sampleCvv, setSampleCvv] = useState("842");
+  const [userConsented, setUserConsented] = useState(true);
+
+  return (
+    <section className="ftd-section ftd-sand-band">
+      <div className="ftd-container">
+        <Reveal>
+          <div className="ftd-row ftd-between" style={{ marginBottom: "0.75em" }}>
+            <div>
+              <span className="ftd-badge live">Try It Live — Plain-English Privacy Firewall</span>
+              <h2 style={{ fontSize: "2.05em", margin: "0.35em 0 0.25em", color: "var(--ftd-heading-light)" }}>
+                See Exactly How FTDP Sorts &amp; Protects Form Data
+              </h2>
+              <p style={{ maxWidth: 740, marginBottom: 0 }}>
+                Edit any field below to see what FTDP&apos;s <code>&lt;head&gt;</code> snippet does{" "}
+                <em>before</em> a single byte leaves your visitor&apos;s browser.
+              </p>
+            </div>
+            <label className="ftd-flag-row" style={{ marginBottom: 0 }}>
+              <span style={{ fontSize: "0.86rem", fontWeight: 600 }}>Visitor Opted In (Consent = ON)</span>
+              <input
+                type="checkbox"
+                checked={userConsented}
+                onChange={(e) => setUserConsented(e.target.checked)}
+              />
+            </label>
+          </div>
+
+          <div className="ftd-card-box" style={{ marginBottom: "1em" }}>
+            <div className="ftd-row" style={{ gap: "0.8em" }}>
+              <label style={{ flex: 1, minWidth: 160, fontSize: "0.8rem" }}>
+                Email (Personal Info)
+                <input className="ftd-input" style={{ width: "100%", marginTop: 4 }} value={sampleEmail} onChange={(e) => setSampleEmail(e.target.value)} />
+              </label>
+              <label style={{ flex: 1, minWidth: 150, fontSize: "0.8rem" }}>
+                Interest Topic (Non-PII)
+                <input className="ftd-input" style={{ width: "100%", marginTop: 4 }} value={sampleTopic} onChange={(e) => setSampleTopic(e.target.value)} />
+              </label>
+              <label style={{ flex: 1, minWidth: 140, fontSize: "0.8rem" }}>
+                Plan Tier (Non-PII)
+                <input className="ftd-input" style={{ width: "100%", marginTop: 4 }} value={samplePlan} onChange={(e) => setSamplePlan(e.target.value)} />
+              </label>
+              <label style={{ flex: 1, minWidth: 140, fontSize: "0.8rem" }}>
+                Password (Secret)
+                <input className="ftd-input" type="password" style={{ width: "100%", marginTop: 4 }} value={samplePassword} onChange={(e) => setSamplePassword(e.target.value)} />
+              </label>
+              <label style={{ width: 100, fontSize: "0.8rem" }}>
+                Card CVV
+                <input className="ftd-input" style={{ width: "100%", marginTop: 4 }} value={sampleCvv} onChange={(e) => setSampleCvv(e.target.value)} />
+              </label>
+            </div>
+          </div>
+
+          <div className="ftd-firewall-grid">
+            <div className="ftd-card-box">
+              <span className="ftd-badge live">1. Anonymized Signal (Earns Rewards)</span>
+              <p style={{ fontSize: "0.84rem", color: "var(--ftd-text-light-muted)", margin: "0.5em 0" }}>
+                Pooled into the Data Union only when consent is ON. Zero personal identifiers.
+              </p>
+              <pre className="ftd-code">
+                {userConsented
+                  ? JSON.stringify(
+                      {
+                        event: "form_submit",
+                        consentFlags: "7",
+                        anon: { topic: sampleTopic, plan: samplePlan },
+                      },
+                      null,
+                      2
+                    )
+                  : "// Consent is OFF — nothing is streamed."}
+              </pre>
+            </div>
+
+            <div className="ftd-card-box">
+              <span className="ftd-badge solana">2. Locked Personal Vault (AES-256-GCM)</span>
+              <p style={{ fontSize: "0.84rem", color: "var(--ftd-text-light-muted)", margin: "0.5em 0" }}>
+                Encrypted per website inside local <code>FtdpPiiVault</code>. Hard-blocked from buyers &amp; P2P sync.
+              </p>
+              <pre className="ftd-code">
+                {userConsented
+                  ? JSON.stringify(
+                      {
+                        collection: "FtdpPiiVault (Local Only)",
+                        fields: ["email"],
+                        ciphertext: "v1:aes256gcm:8f9c...e21a",
+                      },
+                      null,
+                      2
+                    )
+                  : "// Consent is OFF — vault untouched."}
+              </pre>
+            </div>
+
+            <div className="ftd-card-box">
+              <span className="ftd-badge" style={{ background: "rgba(185, 28, 28, 0.1)", color: "#991b1b" }}>
+                3. Hard-Blocked in Browser (Never Sent)
+              </span>
+              <p style={{ fontSize: "0.84rem", color: "var(--ftd-text-light-muted)", margin: "0.5em 0" }}>
+                Passwords, payment cards, CVV, SSNs, and auth/session/JWT cookies are shredded locally.
+              </p>
+              <pre className="ftd-code">
+                {JSON.stringify(
+                  {
+                    droppedFields: [
+                      samplePassword ? "password (BLOCKED)" : null,
+                      sampleCvv ? "cvv (BLOCKED)" : null,
+                    ].filter(Boolean),
+                    droppedCookies: ["session_id", "jwt", "csrf_token"],
+                    bytesTransmitted: 0,
+                  },
+                  null,
+                  2
+                )}
+              </pre>
+            </div>
+          </div>
+
+          <div className="ftd-btn-group" style={{ marginTop: "1.2em" }}>
+            <button type="button" className="ftd-btn ftd-btn-primary ftd-btn-sm" onClick={onOpenDevelopers}>
+              Generate This Snippet for Your Website →
+            </button>
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+/** Interactive Plain-English Economics Calculator (modeled after panoramaprotocol.com in FTDP's warm style) */
+function DataEconomicsCalculator({ onOpenDataUnions }: { onOpenDataUnions: () => void }) {
+  const [role, setRole] = useState<"publisher" | "buyer">("publisher");
+  const [monthlyValue, setMonthlyValue] = useState(25000);
+
+  const web2BrokerCut = Math.round(monthlyValue * 0.45);
+  const web2UserShare = 0;
+  const web2PublisherKeep = Math.round(monthlyValue * 0.55);
+
+  const ftdCommunityShare = Math.round(monthlyValue * 0.95);
+  const ftdTreasuryCut = Math.round(monthlyValue * 0.05);
+  const recoveredValue = ftdCommunityShare - web2PublisherKeep;
+
+  return (
+    <section className="ftd-section ftd-section-light">
+      <div className="ftd-container">
+        <Reveal>
+          <span className="ftd-badge">TRANSPARENT ECONOMICS</span>
+          <h2 className="ftd-section-title" style={{ marginTop: "0.35em", marginBottom: "0.35em" }}>
+            Where Does Data Licensing Value Actually Go?
+          </h2>
+          <p style={{ maxWidth: 760 }}>
+            Today&apos;s data brokers quietly take 35%–50% while paying everyday contributors{" "}
+            <strong>$0</strong>. Slide the monthly dataset value below to compare legacy brokers
+            against an open Fair Trade Data Union on Solana.
+          </p>
+
+          <div className="ftd-row ftd-between" style={{ margin: "1.2em 0" }}>
+            <div className="ftd-row">
+              <button
+                type="button"
+                className={`ftd-btn ftd-btn-sm ${role === "publisher" ? "ftd-btn-primary" : "ftd-btn-outline"}`}
+                onClick={() => setRole("publisher")}
+              >
+                I&apos;m a Publisher / Community
+              </button>
+              <button
+                type="button"
+                className={`ftd-btn ftd-btn-sm ${role === "buyer" ? "ftd-btn-primary" : "ftd-btn-outline"}`}
+                onClick={() => setRole("buyer")}
+              >
+                I&apos;m an AI Lab / Data Buyer
+              </button>
+            </div>
+            <div className="ftd-row" style={{ flex: 1, maxWidth: 420 }}>
+              <span style={{ fontSize: "0.88rem", whiteSpace: "nowrap" }}>
+                Monthly Dataset Budget: <strong className="mono">${monthlyValue.toLocaleString()}/mo</strong>
+              </span>
+              <input
+                type="range"
+                min={1000}
+                max={100000}
+                step={1000}
+                value={monthlyValue}
+                onChange={(e) => setMonthlyValue(Number(e.target.value))}
+                style={{ flex: 1 }}
+              />
+            </div>
+          </div>
+
+          <div className="ftd-grid-2">
+            <div className="ftd-card-box">
+              <span className="ftd-badge" style={{ background: "rgba(185, 28, 28, 0.1)", color: "#991b1b" }}>
+                Legacy Data Brokers &amp; Scrapers
+              </span>
+              <div className="ftd-econ-metric" style={{ color: "#7f1d1d" }}>
+                ~55% <span style={{ fontSize: "0.48em", fontFamily: "var(--ftd-font-body)" }}>reaches originators</span>
+              </div>
+              <p style={{ fontSize: "0.9rem", color: "var(--ftd-text-light-muted)" }}>
+                {role === "publisher"
+                  ? `Brokers & intermediaries extract ~$${web2BrokerCut.toLocaleString()}/mo; individual opted-in users receive $${web2UserShare}.`
+                  : `You pay ~$${web2BrokerCut.toLocaleString()}/mo in opaque broker markups with zero cryptographic proof of user consent.`}
+              </p>
+              <div className="ftd-sub-box" style={{ fontSize: "0.84rem" }}>
+                • Payout timing: Net-60 to Net-90 invoices + disputes<br />
+                • Consent provenance: Unverifiable &ldquo;trust me&rdquo; PDFs<br />
+                • PII liability: Raw personal data frequently commingled
+              </div>
+            </div>
+
+            <div className="ftd-card-box" style={{ borderColor: "var(--ftd-accent)", borderWidth: 2 }}>
+              <span className="ftd-badge live">Fair Trade Data Union (Solana O(1) Split)</span>
+              <div className="ftd-econ-metric" style={{ color: "var(--ftd-heading-light)" }}>
+                95% <span style={{ fontSize: "0.48em", fontFamily: "var(--ftd-font-body)" }}>direct to contributors &amp; apps</span>
+              </div>
+              <p style={{ fontSize: "0.9rem", color: "var(--ftd-text-light-muted)" }}>
+                {role === "publisher"
+                  ? `$${ftdCommunityShare.toLocaleString()}/mo flows directly to your app & contributors (+$${recoveredValue.toLocaleString()}/mo recovered), with $${ftdTreasuryCut.toLocaleString()}/mo (5%) funding open-source FTDF public goods.`
+                  : `$${ftdCommunityShare.toLocaleString()}/mo goes straight to verified opted-in contributors & publishers with cryptographic Merkle consent proofs and zero PII exposure.`}
+              </p>
+              <div className="ftd-sub-box" style={{ fontSize: "0.84rem" }}>
+                • Payout timing: Real-time on-chain O(1) claim anytime<br />
+                • Consent provenance: Verifiable Merkle proof + Zanzibar ACP<br />
+                • PII liability: Zero PII in buyer streams (strictly segregated)
+              </div>
+            </div>
+          </div>
+
+          <div className="ftd-btn-group" style={{ marginTop: "1.2em" }}>
+            <button type="button" className="ftd-btn ftd-btn-outline ftd-btn-sm" onClick={onOpenDataUnions}>
+              Try the Interactive O(1) Data Union Payout Simulator →
+            </button>
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
 export default function App() {
   const [view, setView] = useState<ViewMode>("home");
+  const [learnTopic, setLearnTopic] = useState<LearnTopic>("how-it-works");
+  const [learnMenuOpen, setLearnMenuOpen] = useState(false);
   const [openFaqs, setOpenFaqs] = useState<Record<number, boolean>>({});
   const [optInModal, setOptInModal] = useState<null | "optin" | "refer">(null);
   const [statusMsg, setStatusMsg] = useState<{ text: string; isError?: boolean } | null>(null);
@@ -195,13 +403,12 @@ export default function App() {
   const [solanaWallet, setSolanaWallet] = useState("");
   const [deployments, setDeployments] = useState<Deployment[]>(DEMO_DEPLOYMENTS);
   const [unions, setUnions] = useState<DataUnion[]>(DEMO_UNIONS);
-  const [offers, setOffers] = useState<MarketOffer[]>(DEMO_OFFERS);
 
   // Mobile node modal state
   const [optInAddress, setOptInAddress] = useState("");
   const [referralCode, setReferralCode] = useState("");
 
-  // Developer / SLS Dashboard & Website Onboarding state
+  // Developer Hub & Website Onboarding state
   const [selectedDepId, setSelectedDepId] = useState<string>(DEMO_DEPLOYMENTS[0].id);
   const [flagBits, setFlagBits] = useState<number[]>([0, 1, 2]);
   const [merkleRoot, setMerkleRoot] = useState<string>("Connect ftdp-node for live committed root");
@@ -218,13 +425,21 @@ export default function App() {
   });
   const [meterResult, setMeterResult] = useState<Record<string, unknown> | null>(null);
 
-  const activeFlagMask = useMemo(
-    () => flagBits.reduce((acc, b) => acc | (1n << BigInt(b)), 0n),
-    [flagBits]
-  );
-
   function notify(text: string, isError = false) {
     setStatusMsg({ text, isError });
+  }
+
+  function openLearn(topic: LearnTopic) {
+    setLearnTopic(topic);
+    setView("learn");
+    setLearnMenuOpen(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function openDevelopers() {
+    setView("developers");
+    setLearnMenuOpen(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function refreshFromNode() {
@@ -375,6 +590,7 @@ export default function App() {
 
   async function emitSampleRecord() {
     const clean = nodeUrl.replace(/\/+$/, "");
+    const activeMask = flagBits.reduce((acc, b) => acc | (1n << BigInt(b)), 0n);
     try {
       const uidHash = ethers.keccak256(ethers.toUtf8Bytes(`portal:${solanaWallet || "demo-user"}`));
       const res = await fetch(`${clean}/v1/records`, {
@@ -389,7 +605,7 @@ export default function App() {
             timestamp: Math.floor(Date.now() / 1000),
             source: "webSdk",
           },
-          flags: activeFlagMask.toString(),
+          flags: activeMask.toString(),
           anon: {
             event: "producer_signal",
             topic: eventTopic,
@@ -441,6 +657,7 @@ export default function App() {
   }
 
   function jumpToSection(sectionId: string) {
+    setLearnMenuOpen(false);
     if (view !== "home") {
       setView("home");
       setTimeout(() => {
@@ -451,35 +668,9 @@ export default function App() {
     }
   }
 
-  const cleanNodeUrl = nodeUrl.replace(/\/+$/, "");
-  const snippetHost =
-    typeof window !== "undefined" && window.location.origin.startsWith("http")
-      ? window.location.origin
-      : "https://fairtradedata.xyz";
-
-  const snippetCode = `<!-- Paste inside <head> after verifying DNS TXT ownership -->
-<script src="${snippetHost}/sdk/ftdp-snippet.js"></script>
-<script>
-  FTDP.init({
-    endpoint: "${cleanNodeUrl}",
-    deploymentId: "${selectedDepId}",
-    namespace: "${activeDomain?.domain || "your-site.com"}",
-    consentFlags: "${activeFlagMask.toString()}", // set after user opt-in
-    contributorSolanaWallet: currentUser?.solanaWallet || "",
-    autoCapture: {
-      pageViews: ${autoCapture.pageViews},
-      forms: ${autoCapture.forms},
-      clicks: ${autoCapture.clicks},
-      cookies: ${autoCapture.cookies},
-      scrollDepth: ${autoCapture.scrollDepth}
-    },
-    allowedCookies: ["theme", "locale"] // passwords, CVV & auth cookies are hard-blocked
-  });
-</script>`;
-
   return (
     <>
-      {/* ==================== TOP NAVBAR (Exact 75px Gamma Bar) ==================== */}
+      {/* ==================== TOP NAVBAR (Exact 75px Gamma Bar + Clean Learn Dropdown) ==================== */}
       <header className="ftd-navbar">
         <div className="ftd-navbar-inner">
           <button
@@ -488,34 +679,71 @@ export default function App() {
             aria-label="Fair Trade Data Foundation Home"
             onClick={() => {
               setView("home");
+              setLearnMenuOpen(false);
               window.scrollTo({ top: 0, behavior: "smooth" });
             }}
           >
             <img src="/images/hero-logo.png" alt="Fair Trade Data Foundation" className="ftd-logo-img" />
           </button>
 
-          <nav className="ftd-nav-actions" aria-label="Protocol navigation">
+          <nav className="ftd-nav-actions" aria-label="Primary navigation">
             <button
               type="button"
               className={`ftd-nav-link ${view === "home" ? "active" : ""}`}
-              onClick={() => setView("home")}
+              onClick={() => {
+                setView("home");
+                setLearnMenuOpen(false);
+              }}
             >
               Home
             </button>
+
+            <div className="ftd-dropdown">
+              <button
+                type="button"
+                className={`ftd-nav-link ${view === "learn" && learnTopic !== "roadmap" ? "active" : ""}`}
+                onClick={() => setLearnMenuOpen((o) => !o)}
+              >
+                Learn ▾
+              </button>
+              {learnMenuOpen && (
+                <div className="ftd-dropdown-menu">
+                  <button type="button" className="ftd-dropdown-item" onClick={() => openLearn("how-it-works")}>
+                    <strong>How It Works (Plain English)</strong>
+                    <span>Everyday analogy, 4-stage flow &amp; what changes</span>
+                  </button>
+                  <button type="button" className="ftd-dropdown-item" onClick={() => openLearn("data-unions")}>
+                    <strong>Data Unions &amp; O(1) Payouts</strong>
+                    <span>Solana Devnet programs + interactive split simulator</span>
+                  </button>
+                  <button type="button" className="ftd-dropdown-item" onClick={() => openLearn("privacy-defradb")}>
+                    <strong>Privacy &amp; Source defradb.rs</strong>
+                    <span>What&apos;s pooled vs. hard-blocked &amp; encrypted</span>
+                  </button>
+                  <button type="button" className="ftd-dropdown-item" onClick={() => openLearn("ecosystem")}>
+                    <strong>Ecosystem &amp; Comment Protocol</strong>
+                    <span>Gaming AI, Streamy video/ads &amp; TTN boards</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
             <button
               type="button"
               className={`ftd-nav-link ${view === "developers" ? "active" : ""}`}
-              onClick={() => setView("developers")}
+              onClick={openDevelopers}
             >
-              Developers &amp; Snippet
+              Developers &amp; API
             </button>
+
             <button
               type="button"
-              className={`ftd-nav-link ${view === "unions" ? "active" : ""}`}
-              onClick={() => setView("unions")}
+              className={`ftd-nav-link ${view === "learn" && learnTopic === "roadmap" ? "active" : ""}`}
+              onClick={() => openLearn("roadmap")}
             >
-              Solana Data Unions
+              Roadmap
             </button>
+
             <button
               type="button"
               className="ftd-btn ftd-btn-outline ftd-btn-sm"
@@ -527,14 +755,18 @@ export default function App() {
         </div>
       </header>
 
-      {/* ==================== HOME VIEW (Exact 7-Section Clone of fairtradedata.org) ==================== */}
+      {/* ==================== HOME VIEW (Exact 7-Section Clone + Plain-English Interactive Guides) ==================== */}
       {view === "home" && (
-        <main>
-          {/* SECTION 1: HERO (Light #FFFCF5) */}
+        <main onClick={() => learnMenuOpen && setLearnMenuOpen(false)}>
+          {/* SECTION 1: HERO (Exact fairtradedata.org Light #FFFCF5) */}
           <section id="home" className="ftd-section ftd-section-light">
             <div className="ftd-container">
               <div className="ftd-hero-grid">
                 <Reveal className="ftd-hero-copy">
+                  <div className="ftd-hero-status-pill">
+                    <span className="ftd-live-dot" />
+                    <span>Live on Solana Devnet · Powered by Source Network defradb.rs</span>
+                  </div>
                   <h1 className="ftd-hero-title">
                     Fair Trade Data
                     <br />
@@ -562,12 +794,16 @@ export default function App() {
                     <button
                       type="button"
                       className="ftd-btn ftd-btn-outline"
-                      onClick={() => {
-                        setView("developers");
-                        window.scrollTo({ top: 0, behavior: "smooth" });
-                      }}
+                      onClick={openDevelopers}
                     >
                       For Developers
+                    </button>
+                    <button
+                      type="button"
+                      className="ftd-btn ftd-btn-outline"
+                      onClick={() => openLearn("how-it-works")}
+                    >
+                      How It Works
                     </button>
                   </div>
                 </Reveal>
@@ -591,7 +827,7 @@ export default function App() {
             </div>
           </section>
 
-          {/* SECTION 2: TRANSPARENCY & SECURITY FEATURES (Light #FFFCF5) */}
+          {/* SECTION 2: TRANSPARENCY & SECURITY FEATURES (Exact fairtradedata.org Light #FFFCF5) */}
           <section id="features" className="ftd-section ftd-section-light">
             <div className="ftd-container">
               <div className="ftd-features-grid">
@@ -640,7 +876,10 @@ export default function App() {
             </div>
           </section>
 
-          {/* SECTION 3: MOBILE NODE CTA BANNER (Light #FFFCF5) */}
+          {/* SECTION 2B: INTERACTIVE PLAIN-ENGLISH PRIVACY FIREWALL SANDBOX */}
+          <LivePrivacyFirewallWidget onOpenDevelopers={openDevelopers} />
+
+          {/* SECTION 3: MOBILE NODE CTA BANNER (Exact fairtradedata.org Light #FFFCF5) */}
           <section id="community" className="ftd-section ftd-section-light">
             <div className="ftd-container ftd-cta-section">
               <Reveal>
@@ -667,7 +906,7 @@ export default function App() {
             </div>
           </section>
 
-          {/* SECTION 4: WHY FAIR TRADE DATA + COLLAPSIBLE FAQ (Dark #2B4150) */}
+          {/* SECTION 4: WHY FAIR TRADE DATA + ANIMATED FAQ (Exact fairtradedata.org Dark #2B4150) */}
           <section id="why" className="ftd-section ftd-section-dark">
             <div className="ftd-container">
               <Reveal className="ftd-why-copy">
@@ -720,7 +959,10 @@ export default function App() {
             </div>
           </section>
 
-          {/* SECTION 5: FTD USER ROADMAP (Light #FFFCF5 + Watermark Veil + Interlocking Chevrons) */}
+          {/* SECTION 4B: INTERACTIVE ECONOMICS COMPARISON CALCULATOR */}
+          <DataEconomicsCalculator onOpenDataUnions={() => openLearn("data-unions")} />
+
+          {/* SECTION 5: FTD USER ROADMAP (Exact fairtradedata.org Watermark + Chevrons) */}
           <section id="roadmap" className="ftd-section ftd-section-light ftd-roadmap-section">
             <img
               src="/images/roadmap-bg.png"
@@ -759,7 +1001,34 @@ export default function App() {
             </div>
           </section>
 
-          {/* SECTION 6: COMMUNITY DRIVEN MARKETPLACES (Light #FFFCF5) */}
+          {/* SECTION 5B: VISUAL PROTOCOL ARCHITECTURE DIAGRAM (Dark #2B4150) */}
+          <section className="ftd-section ftd-section-dark">
+            <div className="ftd-container">
+              <Reveal>
+                <div className="ftd-row ftd-between" style={{ marginBottom: "1em" }}>
+                  <div>
+                    <span className="ftd-badge" style={{ background: "rgba(146,186,211,0.18)", color: "#92BAD3" }}>
+                      HOW THE PROTOCOL WORKS UNDER THE HOOD
+                    </span>
+                    <h2 className="ftd-section-title" style={{ marginTop: "0.35em", marginBottom: "0.2em" }}>
+                      Four Steps From Consent to Solana Payout
+                    </h2>
+                  </div>
+                  <div className="ftd-row">
+                    <button type="button" className="ftd-btn ftd-btn-dark-outline ftd-btn-sm" onClick={() => openLearn("privacy-defradb")}>
+                      Privacy &amp; DefraDB Deep Dive
+                    </button>
+                    <button type="button" className="ftd-btn ftd-btn-primary ftd-btn-sm" onClick={openDevelopers}>
+                      Open Developer Docs
+                    </button>
+                  </div>
+                </div>
+                <ProtocolFlowDiagram dark />
+              </Reveal>
+            </div>
+          </section>
+
+          {/* SECTION 6: COMMUNITY DRIVEN MARKETPLACES (Exact fairtradedata.org Light #FFFCF5) */}
           <section id="marketplaces" className="ftd-section ftd-section-light">
             <div className="ftd-container">
               <Reveal>
@@ -774,15 +1043,15 @@ export default function App() {
                     <button
                       type="button"
                       className="ftd-market-card"
-                      onClick={() => {
-                        setView("unions");
-                        window.scrollTo({ top: 0, behavior: "smooth" });
-                      }}
+                      onClick={() => openLearn("ecosystem")}
                     >
                       <div className="ftd-market-img-wrap">
                         <img src={card.image} alt={card.alt} className="ftd-market-img" />
                       </div>
                       <h4>{card.title}</h4>
+                      <p style={{ fontSize: "0.88rem", color: "var(--ftd-text-light-muted)", marginTop: "0.45em", marginBottom: 0 }}>
+                        {card.blurb}
+                      </p>
                     </button>
                   </Reveal>
                 ))}
@@ -792,350 +1061,55 @@ export default function App() {
         </main>
       )}
 
-      {/* ==================== DEVELOPERS & WEBSITE ONBOARDING VIEW ==================== */}
-      {view === "developers" && (
-        <main className="ftd-section ftd-section-light ftd-portal-panel">
-          <div className="ftd-container">
-            <div className="ftd-row ftd-between" style={{ marginBottom: "1.4em" }}>
-              <div>
-                <div className="ftd-row" style={{ marginBottom: "0.4em" }}>
-                  <span className={`ftd-badge ${nodeOnline ? "live" : ""}`}>
-                    {nodeOnline ? "FTDP Node Live" : "Node Offline"}
-                  </span>
-                  <span className={`ftd-badge ${defradbConnected ? "live" : ""}`}>
-                    {defradbConnected ? "Source Network defradb.rs Connected" : "Local Store Mode"}
-                  </span>
-                  <span className="ftd-badge solana">Solana Devnet Live</span>
-                </div>
-                <h1 className="ftd-section-title" style={{ marginBottom: "0.2em" }}>
-                  Developers &amp; Website Onboarding
-                </h1>
-                <p style={{ marginBottom: 0 }}>
-                  Verify domain ownership via DNS TXT, paste one <code>&lt;head&gt;</code> snippet,
-                  and stream consent-segregated records into Source Network <code>defradb.rs</code>{" "}
-                  and Solana Data Unions.
-                </p>
-              </div>
-              <div className="ftd-row">
-                <a className="ftd-btn ftd-btn-outline ftd-btn-sm" href={GITHUB_URL} target="_blank" rel="noreferrer">
-                  GitHub Repo
-                </a>
-                <button type="button" className="ftd-btn ftd-btn-primary ftd-btn-sm" onClick={() => setView("home")}>
-                  Back to Home
-                </button>
-              </div>
-            </div>
-
-            <div className="ftd-grid-2">
-              {/* Left: Domain DNS TXT Onboarding */}
-              <div className="ftd-card-box">
-                <h3 style={{ marginBottom: "0.35em" }}>1. Verify Domain Ownership (DNS TXT)</h3>
-                <p style={{ fontSize: "0.9rem", color: "var(--ftd-text-light-muted)" }}>
-                  Locks browser <code>Origin</code> ingestion so only your verified domain(s) can
-                  stream records into this deployment.
-                </p>
-
-                <div className="ftd-sub-box" style={{ marginBottom: "1em" }}>
-                  <div style={{ fontSize: "0.78rem", color: "var(--ftd-text-light-muted)" }}>Active FTDP Node Endpoint</div>
-                  <div className="ftd-row" style={{ marginTop: "0.4em" }}>
-                    <input
-                      className="ftd-input"
-                      value={nodeUrl}
-                      onChange={(e) => setNodeUrl(e.target.value)}
-                      style={{ flex: 1, minWidth: 200 }}
-                    />
-                    <button type="button" className="ftd-btn ftd-btn-outline ftd-btn-sm" onClick={refreshFromNode}>
-                      Reconnect
-                    </button>
-                  </div>
-                </div>
-
-                <form onSubmit={registerDomainChallenge} className="ftd-row" style={{ marginBottom: "1em" }}>
-                  <input
-                    className="ftd-input"
-                    value={domainInput}
-                    onChange={(e) => setDomainInput(e.target.value)}
-                    placeholder="example.com"
-                    style={{ flex: 1, minWidth: 180 }}
-                  />
-                  <button type="submit" className="ftd-btn ftd-btn-primary ftd-btn-sm">
-                    Generate DNS TXT
-                  </button>
-                </form>
-
-                {domains.length > 0 && (
-                  <div className="ftd-row" style={{ marginBottom: "0.9em" }}>
-                    {domains.map((d) => (
-                      <button
-                        key={d.domain}
-                        type="button"
-                        className={`ftd-btn ftd-btn-sm ${
-                          activeDomain?.domain === d.domain ? "ftd-btn-primary" : "ftd-btn-outline"
-                        }`}
-                        onClick={() => setActiveDomain(d)}
-                      >
-                        {d.domain} {d.verified ? "✓" : "•"}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {activeDomain && (
-                  <div className="ftd-sub-box">
-                    <div style={{ fontSize: "0.78rem", color: "var(--ftd-text-light-muted)" }}>
-                      TXT Host (or apex {activeDomain.domain})
-                    </div>
-                    <div className="mono" style={{ fontSize: "0.84rem", color: "var(--ftd-heading-light)", marginBottom: "0.5em" }}>
-                      {activeDomain.txtHost}
-                    </div>
-                    <div style={{ fontSize: "0.78rem", color: "var(--ftd-text-light-muted)" }}>TXT Value</div>
-                    <div className="mono" style={{ fontSize: "0.82rem", wordBreak: "break-all", marginBottom: "0.75em" }}>
-                      {activeDomain.txtValue}
-                    </div>
-                    <div className="ftd-row">
-                      <button
-                        type="button"
-                        className="ftd-btn ftd-btn-outline ftd-btn-sm"
-                        onClick={() => copyText("DNS TXT value", activeDomain.txtValue)}
-                      >
-                        Copy TXT Value
-                      </button>
-                      <button
-                        type="button"
-                        className="ftd-btn ftd-btn-primary ftd-btn-sm"
-                        onClick={() => verifyDomainChallenge(activeDomain.domain)}
-                      >
-                        {activeDomain.verified ? "Verified ✓ (Re-Check)" : "Verify DNS TXT"}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Right: Consent Flags + Live Ingestion */}
-              <div className="ftd-card-box">
-                <h3 style={{ marginBottom: "0.35em" }}>2. Consent Flags &amp; Live DefraDB Ingest</h3>
-                <p style={{ fontSize: "0.9rem", color: "var(--ftd-text-light-muted)" }}>
-                  Test live ingestion directly into Railway <code>ftdp-node</code> + Source Network{" "}
-                  <code>defradb.rs</code>.
-                </p>
-
-                <div style={{ marginBottom: "0.9em" }}>
-                  <select
-                    className="ftd-input"
-                    style={{ width: "100%" }}
-                    value={selectedDepId}
-                    onChange={(e) => setSelectedDepId(e.target.value)}
-                  >
-                    {deployments.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name} ({d.id.slice(0, 12)}...)
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {CONSENT_FLAGS.map((f) => {
-                  const checked = flagBits.includes(f.bit);
-                  return (
-                    <label key={f.bit} className="ftd-flag-row">
-                      <div>
-                        <strong style={{ fontSize: "0.9rem" }}>
-                          Bit {f.bit}: {f.label}
-                        </strong>
-                        <div style={{ fontSize: "0.78rem", color: "var(--ftd-text-light-muted)" }}>{f.desc}</div>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() =>
-                          setFlagBits((prev) =>
-                            checked ? prev.filter((b) => b !== f.bit) : [...prev, f.bit]
-                          )
-                        }
-                      />
-                    </label>
-                  );
-                })}
-
-                <div className="ftd-row ftd-between" style={{ marginTop: "0.9em" }}>
-                  <span className="mono" style={{ fontSize: "0.85rem" }}>
-                    Mask: <strong>{activeFlagMask.toString()}</strong>
-                  </span>
-                  <div className="ftd-row">
-                    <input
-                      className="ftd-input"
-                      value={eventTopic}
-                      onChange={(e) => setEventTopic(e.target.value)}
-                      style={{ width: 150 }}
-                    />
-                    <button type="button" className="ftd-btn ftd-btn-primary ftd-btn-sm" onClick={emitSampleRecord}>
-                      Emit Live Record
-                    </button>
-                  </div>
-                </div>
-
-                <div className="ftd-sub-box" style={{ marginTop: "0.9em" }}>
-                  <div style={{ fontSize: "0.78rem", color: "var(--ftd-text-light-muted)" }}>Opt-In Merkle Root</div>
-                  <div className="mono" style={{ fontSize: "0.78rem", wordBreak: "break-all" }}>
-                    {merkleRoot}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Step 3: Auto-Capture <head> Snippet */}
-            <div className="ftd-card-box" style={{ marginTop: "1.4em" }}>
-              <div className="ftd-row ftd-between">
-                <div>
-                  <h3 style={{ marginBottom: "0.2em" }}>3. Paste Auto-Capture &lt;head&gt; Snippet</h3>
-                  <p style={{ fontSize: "0.88rem", color: "var(--ftd-text-light-muted)", marginBottom: "0.6em" }}>
-                    Passwords, CVV/card/SSN inputs, and auth/session/JWT cookies are hard-blocked.
-                    Email/name/phone/address fields auto-route into the AES-256-GCM encrypted{" "}
-                    <code>pii</code> vault.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="ftd-btn ftd-btn-primary ftd-btn-sm"
-                  onClick={() => copyText("HTML <head> snippet", snippetCode)}
-                >
-                  Copy Snippet
-                </button>
-              </div>
-
-              <div className="ftd-row" style={{ gap: "1em" }}>
-                {(
-                  [
-                    ["pageViews", "Page Views & UTM"],
-                    ["forms", "Form Submissions"],
-                    ["clicks", "UI Clicks"],
-                    ["cookies", "Safe Cookie Meta"],
-                    ["scrollDepth", "Scroll Depth"],
-                  ] as const
-                ).map(([key, label]) => (
-                  <label key={key} className="ftd-row" style={{ fontSize: "0.88rem", cursor: "pointer" }}>
-                    <input
-                      type="checkbox"
-                      checked={autoCapture[key]}
-                      onChange={() =>
-                        setAutoCapture((prev) => ({ ...prev, [key]: !prev[key] }))
-                      }
-                    />
-                    <span>{label}</span>
-                  </label>
-                ))}
-              </div>
-              <pre className="ftd-code">{snippetCode}</pre>
-            </div>
-          </div>
-        </main>
+      {/* ==================== LEARN & ROADMAP PAGES ==================== */}
+      {view === "learn" && (
+        <div onClick={() => learnMenuOpen && setLearnMenuOpen(false)}>
+          <LearnPages
+            topic={learnTopic}
+            onSelectTopic={(t) => {
+              setLearnTopic(t);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            onOpenDevelopers={openDevelopers}
+            onOpenOptIn={() => setOptInModal("optin")}
+          />
+        </div>
       )}
 
-      {/* ==================== LIVE SOLANA DEVNET DATA UNIONS & MARKETPLACES VIEW ==================== */}
-      {view === "unions" && (
-        <main className="ftd-section ftd-section-light ftd-portal-panel">
-          <div className="ftd-container">
-            <div className="ftd-row ftd-between" style={{ marginBottom: "1.4em" }}>
-              <div>
-                <div className="ftd-row" style={{ marginBottom: "0.4em" }}>
-                  <span className="ftd-badge live">Solana Devnet Live</span>
-                  <span className="ftd-badge">Checked u128 Fixed-Point RPS (1e18)</span>
-                </div>
-                <h1 className="ftd-section-title" style={{ marginBottom: "0.2em" }}>
-                  Solana Data Unions &amp; Marketplaces
-                </h1>
-                <p style={{ marginBottom: 0 }}>
-                  Standalone FTDP Anchor MultiSplitter Data Unions deployed on Solana Devnet with
-                  O(1) constant-time revenue splitting.
-                </p>
-              </div>
-              <button type="button" className="ftd-btn ftd-btn-primary ftd-btn-sm" onClick={() => setView("home")}>
-                Back to Home
-              </button>
-            </div>
-
-            <div className="ftd-grid-2" style={{ marginBottom: "1.4em" }}>
-              <div className="ftd-card-box">
-                <span className="ftd-badge live" style={{ marginBottom: "0.6em" }}>
-                  Deployed on Solana Devnet • Anchor 0.30.1
-                </span>
-                <h3>FTDP Admin MultiSplitter Union</h3>
-                <div className="ftd-sub-box mono" style={{ fontSize: "0.8rem", wordBreak: "break-all", marginBottom: "0.9em" }}>
-                  <div>Program ID: {SOLANA_DEVNET_PROGRAMS.adminUnion.programId}</div>
-                </div>
-                <div className="ftd-row">
-                  <a
-                    className="ftd-btn ftd-btn-outline ftd-btn-sm"
-                    href={SOLANA_DEVNET_PROGRAMS.adminUnion.solscanUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    View on Solscan
-                  </a>
-                  <button
-                    type="button"
-                    className="ftd-btn ftd-btn-primary ftd-btn-sm"
-                    onClick={() => runUnionMetering(unions[0]?.id || "ftdp-admin-data-union-devnet")}
-                  >
-                    Run Solana Metering
-                  </button>
-                </div>
-              </div>
-
-              <div className="ftd-card-box">
-                <span className="ftd-badge live" style={{ marginBottom: "0.6em" }}>
-                  Deployed on Solana Devnet • Anchor 0.32.1 Token-2022
-                </span>
-                <h3>FTDP SPL Transfer-Hook Union</h3>
-                <div className="ftd-sub-box mono" style={{ fontSize: "0.8rem", wordBreak: "break-all", marginBottom: "0.9em" }}>
-                  <div>Program ID: {SOLANA_DEVNET_PROGRAMS.splUnion.programId}</div>
-                </div>
-                <div className="ftd-row">
-                  <a
-                    className="ftd-btn ftd-btn-outline ftd-btn-sm"
-                    href={SOLANA_DEVNET_PROGRAMS.splUnion.solscanUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    View on Solscan
-                  </a>
-                  <button
-                    type="button"
-                    className="ftd-btn ftd-btn-primary ftd-btn-sm"
-                    onClick={() => runUnionMetering(unions[1]?.id || "ftdp-spl-transfer-hook-union-devnet")}
-                  >
-                    Run Solana Metering
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {meterResult && (
-              <div className="ftd-card-box" style={{ marginBottom: "1.4em" }}>
-                <h3>Latest Solana Metering Payload</h3>
-                <pre className="ftd-code">{JSON.stringify(meterResult, null, 2)}</pre>
-              </div>
-            )}
-
-            <div className="ftd-market-grid">
-              {offers.map((offer, idx) => (
-                <div key={offer.id} className="ftd-card-box">
-                  <span className="ftd-badge" style={{ marginBottom: "0.6em" }}>
-                    Marketplace #{idx + 1} • Flags {offer.requiredFlags}
-                  </span>
-                  <h4 style={{ fontSize: "1.1em", marginBottom: "0.4em" }}>{offer.title}</h4>
-                  <p style={{ fontSize: "0.88rem", color: "var(--ftd-text-light-muted)" }}>
-                    {offer.description}
-                  </p>
-                  <div className="ftd-sub-box mono" style={{ fontSize: "0.75rem", wordBreak: "break-all" }}>
-                    Solana Beneficiary: {offer.beneficiary}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </main>
+      {/* ==================== DEVELOPER HUB & API DOCS ==================== */}
+      {view === "developers" && (
+        <div onClick={() => learnMenuOpen && setLearnMenuOpen(false)}>
+          <DeveloperHub
+            nodeUrl={nodeUrl}
+            setNodeUrl={setNodeUrl}
+            nodeOnline={nodeOnline}
+            defradbConnected={defradbConnected}
+            refreshFromNode={refreshFromNode}
+            deployments={deployments}
+            selectedDepId={selectedDepId}
+            setSelectedDepId={setSelectedDepId}
+            domains={domains}
+            activeDomain={activeDomain}
+            setActiveDomain={setActiveDomain}
+            domainInput={domainInput}
+            setDomainInput={setDomainInput}
+            registerDomainChallenge={registerDomainChallenge}
+            verifyDomainChallenge={verifyDomainChallenge}
+            flagBits={flagBits}
+            setFlagBits={setFlagBits}
+            merkleRoot={merkleRoot}
+            eventTopic={eventTopic}
+            setEventTopic={setEventTopic}
+            emitSampleRecord={emitSampleRecord}
+            autoCapture={autoCapture}
+            setAutoCapture={setAutoCapture}
+            unions={unions}
+            runUnionMetering={runUnionMetering}
+            meterResult={meterResult}
+            copyText={copyText}
+            githubUrl={GITHUB_URL}
+          />
+        </div>
       )}
 
       {/* ==================== SECTION 7: FOOTER (Exact 3-Column Dark #2B4150) ==================== */}
@@ -1147,22 +1121,30 @@ export default function App() {
               <button type="button" className="ftd-footer-link" onClick={() => jumpToSection("home")}>
                 I home
               </button>
-              <button type="button" className="ftd-footer-link" onClick={() => jumpToSection("roadmap")}>
+              <button type="button" className="ftd-footer-link" onClick={() => openLearn("how-it-works")}>
+                I how it works
+              </button>
+              <button type="button" className="ftd-footer-link" onClick={() => openLearn("data-unions")}>
+                I data unions
+              </button>
+              <button type="button" className="ftd-footer-link" onClick={() => openLearn("roadmap")}>
                 I roadmap
               </button>
               <button type="button" className="ftd-footer-link" onClick={() => jumpToSection("community")}>
                 I community
               </button>
-              <button
-                type="button"
-                className="ftd-footer-link"
-                onClick={() => {
-                  setView("developers");
-                  window.scrollTo({ top: 0, behavior: "smooth" });
-                }}
-              >
-                I contact us
+              <button type="button" className="ftd-footer-link" onClick={openDevelopers}>
+                I developer docs &amp; api
               </button>
+              <a
+                className="ftd-footer-link"
+                href={GITHUB_URL}
+                target="_blank"
+                rel="noreferrer"
+                style={{ textDecoration: "none" }}
+              >
+                I github (mit open source)
+              </a>
             </Reveal>
 
             <Reveal staggerIndex={1}>
@@ -1171,6 +1153,9 @@ export default function App() {
                 and equitable exchange of data, creating a transparent mechanism for tracking data
                 production, consumption, and monetization across humans, bots, advertisers, and
                 enterprises
+              </p>
+              <p style={{ fontSize: "0.78rem", color: "var(--ftd-text-dark-muted)", marginTop: "1.1em", marginBottom: 0 }}>
+                Fair Trade Data Protocol · Standalone Solana MultiSplitter Data Unions · Open HTTP API · Source Network defradb.rs (Apache-2.0 / MIT) · Zero PII Shared
               </p>
             </Reveal>
 

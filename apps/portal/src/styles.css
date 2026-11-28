@@ -827,6 +827,125 @@ pre,
   justify-content: space-between;
 }
 
+/* ==================== DROPDOWN MENU, API TABLE & INTERACTIVE WIDGETS ==================== */
+.ftd-dropdown {
+  position: relative;
+}
+
+.ftd-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 260px;
+  background: #ffffff;
+  border: 1px solid var(--ftd-border-light);
+  border-radius: 6px;
+  padding: 6px;
+  box-shadow: 0 14px 36px rgba(43, 65, 80, 0.16);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ftd-dropdown-item {
+  background: transparent;
+  border: 0;
+  text-align: left;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: var(--ftd-font-body);
+  color: var(--ftd-text-light);
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.ftd-dropdown-item:hover {
+  background: var(--ftd-surface-light);
+  color: var(--ftd-heading-light);
+}
+
+.ftd-dropdown-item strong {
+  display: block;
+  font-size: 0.88rem;
+}
+
+.ftd-dropdown-item span {
+  display: block;
+  font-size: 0.76rem;
+  color: var(--ftd-text-light-muted);
+}
+
+.ftd-api-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.ftd-api-table th,
+.ftd-api-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--ftd-border-light);
+  vertical-align: top;
+}
+
+.ftd-api-table th {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ftd-text-light-muted);
+  background: var(--ftd-surface-light);
+}
+
+.ftd-sand-band {
+  background-color: var(--ftd-surface-light);
+  border-top: 1px solid var(--ftd-border-light);
+  border-bottom: 1px solid var(--ftd-border-light);
+}
+
+.ftd-firewall-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1em;
+  margin-top: 1em;
+}
+
+.ftd-econ-metric {
+  font-family: var(--ftd-font-display);
+  font-size: 2.1em;
+  font-weight: 500;
+  line-height: 1.15;
+  margin: 0.25em 0;
+}
+
+.ftd-hero-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--ftd-surface-light);
+  border: 1px solid var(--ftd-border-light);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ftd-heading-light);
+  margin-bottom: 1em;
+}
+
+.ftd-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #16a34a;
+  display: inline-block;
+}
+
+@media (max-width: 960px) {
+  .ftd-firewall-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ==================== RESPONSIVE ==================== */
 @media (max-width: 960px) {
   .ftd-navbar-inner {
